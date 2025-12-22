@@ -53,3 +53,12 @@ func TestParseIPv4(t *testing.T) {
 		t.Errorf("Payload length = %d, want 4", len(pkt.Payload))
 	}
 }
+
+func TestParseIPv4TooShort(t *testing.T) {
+	data := []byte{0x45, 0x00, 0x00} // Only 3 bytes
+
+	_, err := ParseIPv4(data)
+	if err == nil {
+		t.Error("expected error for short packet, got nil")
+	}
+}
