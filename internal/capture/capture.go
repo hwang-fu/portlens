@@ -2,6 +2,7 @@ package capture
 
 import (
 	"fmt"
+	"net"
 	"syscall"
 )
 
@@ -27,6 +28,25 @@ func NewSocket() (*Socket, error) {
 // Close closes the socket.
 func (s *Socket) Close() error {
 	return syscall.Close(s.fd)
+}
+
+// Bind binds the socket to a specific network interface.
+func (s *Socket) Bind(interfaceName string) error {
+	netInterface, err := net.InterfaceByName(interfaceName)
+	if err != nil {
+		return fmt.Errorf("get interface %s: %w", interfaceName, err)
+	}
+
+	addr := syscall.SockaddrLinklayer{
+		Protocol: htons(syscall.ETH_P_ALL),
+		Ifindex:  netInterface.Index,
+	}
+
+	if err := syscall.Bind(s.fd, &addr); err != nil {
+		return fmt.Errorf("bind to %s: %w", interfaceName, err)
+	}
+
+	return nil
 }
 
 // htons converts a short (uint16) from host to network byte order.
