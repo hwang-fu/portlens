@@ -32,3 +32,12 @@ func TestParseEthernet(t *testing.T) {
 		t.Errorf("Payload length = %d, want 4", len(frame.Payload))
 	}
 }
+
+func TestParseEthernetTooShort(t *testing.T) {
+	data := []byte{0x00, 0x01, 0x02} // Only 3 bytes
+
+	_, err := ParseEthernet(data)
+	if err == nil {
+		t.Error("expected error for short packet, got nil")
+	}
+}
