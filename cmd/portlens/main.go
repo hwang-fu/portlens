@@ -1,12 +1,12 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/hwang-fu/portlens/internal/capture"
+	"github.com/hwang-fu/portlens/internal/parser"
 )
 
 var version = "dev"
@@ -40,7 +40,20 @@ func main() {
 			log.Printf("read error: %v", err)
 			continue
 		}
+
+		frame, err := parser.ParseEthernet(buf[:n])
+		if err != nil {
+			log.Printf("parse error: %v", err)
+			continue
+		}
+		// Skip non-IPv4 packets by far
+		if frame.EtherType != parser.EtherTypeIPv4 {
+			continue
+		}
+
 		fmt.Printf("\n=== Packet: %d bytes ===\n", n)
-		fmt.Println(hex.Dump(buf[:n]))
+		fmt.Printf("Src MAC: %s\n", frame.SrcMAC)
+		fmt.Printf("Dst MAC: %s\n", frame.DestMAC)
+		fmt.Printf("Payload: %d bytes\n", len(frame.Payload))
 	}
 }
