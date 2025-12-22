@@ -14,7 +14,9 @@ var version = "dev"
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("usage: portlens <interface>")
-		fmt.Println("example: sudo ./portlens eth0")
+		// Use `ip link show` to list available interfaces.
+		// To test with loopback: run `sudo ./portlens lo` then `ping 127.0.0.1` in another terminal.
+		fmt.Println("example: sudo ./portlens lo")
 		os.Exit(1)
 	}
 
