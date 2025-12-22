@@ -16,7 +16,7 @@ func TestParseEthernet(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if frame.DestMAC.String() != "aa:bb:cc:d:ee:ff" {
+	if frame.DestMAC.String() != "aa:bb:cc:dd:ee:ff" {
 		t.Errorf("DestMAC = %s, want aa:bb:cc:dd:ee:ff", frame.DestMAC)
 	}
 
