@@ -19,6 +19,11 @@ func NewSocket() (*Socket, error) {
 	return &Socket{fd: fd}, nil
 }
 
+// Close closes the socket.
+func (s *Socket) Close() error {
+	return syscall.Close(s.fd)
+}
+
 // htons converts a short (uint16) from host to network byte order.
 func htons(i uint16) uint16 {
 	return (i<<8)&0xff00 | i>>8
