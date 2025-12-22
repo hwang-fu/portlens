@@ -49,6 +49,16 @@ func (s *Socket) Bind(interfaceName string) error {
 	return nil
 }
 
+// ReadPacket reads a single raw packet from the socket.
+// Returns the packet data and the number of bytes read.
+func (s *Socket) ReadPacket(buf []byte) (int, error) {
+	n, _, err := syscall.Recvfrom(s.fd, buf, 0)
+	if err != nil {
+		return 0, fmt.Errorf("read packet: %w", err)
+	}
+	return n, nil
+}
+
 // htons converts a short (uint16) from host to network byte order.
 func htons(i uint16) uint16 {
 	return (i<<8)&0xff00 | i>>8
