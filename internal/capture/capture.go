@@ -12,10 +12,15 @@ type Socket struct {
 
 // NewSocket creates a new AF_PACKET socket for capturing raw packets.
 func NewSocket() (*Socket, error) {
-	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
+	fd, err := syscall.Socket(
+		syscall.AF_PACKET,
+		syscall.SOCK_RAW,
+		int(htons(syscall.ETH_P_ALL)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create socket: %w", err)
 	}
+
 	return &Socket{fd: fd}, nil
 }
 
