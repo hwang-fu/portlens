@@ -62,3 +62,14 @@ func TestParseIPv4TooShort(t *testing.T) {
 		t.Error("expected error for short packet, got nil")
 	}
 }
+
+func TestParseIPv4WrongVersion(t *testing.T) {
+	// IPv6 version (6) instead of 4
+	data := make([]byte, 20)
+	data[0] = 0x65 // Version 6, IHL 5
+
+	_, err := ParseIPv4(data)
+	if err == nil {
+		t.Error("expected error for wrong version, got nil")
+	}
+}
