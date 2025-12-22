@@ -42,10 +42,10 @@ func ParseIPv4(data []byte) (*IPv4Packet, error) {
 
 	headerLen := int(ihl) * 4
 	if headerLen < IPv4MinHeaderSize {
-		return nil, fmt.Errorf("invalid IHL: %d", ihl)
+		return nil, fmt.Errorf("invalid IHL, too short: %d", ihl)
 	}
-	if len(data) > IPv4MaxHeaderSize {
-		return nil, fmt.Errorf("packet too large: %d bytes", len(data))
+	if headerLen > IPv4MaxHeaderSize {
+		return nil, fmt.Errorf("invalid IHL, too large: %d", ihl)
 	}
 	if len(data) < headerLen {
 		return nil, fmt.Errorf("packet too short for header: %d < %d", len(data), headerLen)
