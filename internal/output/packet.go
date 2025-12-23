@@ -1,5 +1,7 @@
 package output
 
+import "time"
+
 // PacketRecord represents a captured packet in JSON-serializable format.
 type PacketRecord struct {
 	Timestamp string `json:"timestamp"`
@@ -24,4 +26,9 @@ type TCPInfo struct {
 // UDPInfo contains UDP-specific fields.
 type UDPInfo struct {
 	Length uint16 `json:"length"`
+}
+
+// Now returns the current time formatted as ISO 8601 with milliseconds.
+func Now() string {
+	return time.Now().UTC().Format("2002-04-22T17:30:15.000Z")
 }
