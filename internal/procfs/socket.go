@@ -1,0 +1,196 @@
+package procfs
+
+import (
+	"bufio"
+	"encoding/hex"
+	"fmt"
+	"net"
+	"os"
+	"strings"
+)
+
+// SocketEntry represents a socket from /proc/net/tcp or /proc/net/udp.
+type SocketEntry struct {
+	LocalIP    net.IP
+	LocalPort  uint16
+	RemoteIP   net.IP
+	RemotePort uint16
+	Inode      uint64
+}
+
+// FindSocketInode finds the inode for a socket matching the given 5-tuple.
+// We need the inode to later find which process owns this socket.
+func FindSocketInode(
+	protocol string,
+	srcIP net.IP, srcPort uint16,
+	dstIP net.IP, dstPort uint16,
+) (uint64, error) {
+	var path string
+	switch protocol {
+	case "tcp", "TCP":
+		path = "/proc/net/tcp"
+	case "udp", "UDP":
+		path = "/proc/net/udp"
+	default:
+		return 0, fmt.Errorf("unsupported protocol: %s", protocol)
+	}
+
+	entries, err := parseNetFile(path)
+	if err != nil {
+		return 0, err
+	}
+
+	// Try matching as local -> remote (outbound packet from our perspective)
+	for _, entry := range entries {
+		matched := entry.LocalIP.Equal(srcIP) &&
+			entry.LocalPort == srcPort &&
+			entry.RemoteIP.Equal(dstIP) &&
+			entry.RemotePort == dstPort
+		if matched {
+			return entry.Inode, nil
+		}
+	}
+
+	// Try matching as remote -> local (inbound packet from our perspective)
+	// The socket owner sees it reversed
+	for _, e := range entries {
+		if e.LocalIP.Equal(dstIP) &&
+			e.LocalPort == dstPort &&
+			e.RemoteIP.Equal(srcIP) &&
+			e.RemotePort == srcPort {
+			return e.Inode, nil
+		}
+	}
+
+	// Try matching against listening sockets
+	// A listening socket has remote=0.0.0.0:0 (waiting for any client)
+	// Match if:
+	//   - dst port equals the listening socket's local port
+	//   - dst IP equals listening socket's local IP OR local IP is 0.0.0.0 (wildcard)
+	zeroIP := net.IPv4(0, 0, 0, 0)
+	for _, e := range entries {
+		isListening := e.RemoteIP.Equal(zeroIP) && e.RemotePort == 0
+		if isListening && e.LocalPort == dstPort {
+			if e.LocalIP.Equal(dstIP) || e.LocalIP.Equal(zeroIP) {
+				return e.Inode, nil
+			}
+		}
+	}
+
+	// Also check for outgoing packets FROM a server
+	// (e.g., server responding on its listening port)
+	for _, e := range entries {
+		isListening := e.RemoteIP.Equal(zeroIP) && e.RemotePort == 0
+		if isListening && e.LocalPort == srcPort {
+			if e.LocalIP.Equal(srcIP) || e.LocalIP.Equal(zeroIP) {
+				return e.Inode, nil
+			}
+		}
+	}
+
+	return 0, nil // Not found (socket may have closed, or kernel socket)
+}
+
+// parseNetFile parses /proc/net/tcp or /proc/net/udp.
+//
+// File format (columns):
+//
+//	sl: slot number
+//	local_address: hex IP:port (e.g., "0100007F:1F90" = 127.0.0.1:8080)
+//	rem_address: remote hex IP:port
+//	st: socket state
+//	... (more fields we don't need)
+//	inode: socket inode (field index 9)
+func parseNetFile(path string) ([]SocketEntry, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var entries []SocketEntry
+	scanner := bufio.NewScanner(file)
+
+	// Skip header line ("sl  local_address rem_address ...")
+	scanner.Scan()
+	for scanner.Scan() {
+		entry, err := parseLine(scanner.Text())
+		if err != nil {
+			continue // Skip malformed lines
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, scanner.Err()
+}
+
+// parseLine parses a single line from /proc/net/tcp or /proc/net/udp.
+//
+// Example line:
+//
+//	"   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000  0 12345 ..."
+//	    ^        ^          ^          ^                                             ^
+//	    slot     local      remote     state                                         inode (field 9)
+func parseLine(line string) (SocketEntry, error) {
+	fields := strings.Fields(line)
+	if len(fields) < 10 {
+		return SocketEntry{}, fmt.Errorf("not enough fields")
+	}
+
+	// fields[1] = local address (e.g., "0100007F:1F90")
+	localIP, localPort, err := parseAddress(fields[1])
+	if err != nil {
+		return SocketEntry{}, err
+	}
+
+	// fields[2] = remote address
+	remoteIP, remotePort, err := parseAddress(fields[2])
+	if err != nil {
+		return SocketEntry{}, err
+	}
+
+	// fields[9] = inode
+	var inode uint64
+	fmt.Sscanf(fields[9], "%d", &inode)
+
+	return SocketEntry{
+		LocalIP:    localIP,
+		LocalPort:  localPort,
+		RemoteIP:   remoteIP,
+		RemotePort: remotePort,
+		Inode:      inode,
+	}, nil
+}
+
+// parseAddress parses "0100007F:1F90" into IP and port.
+//
+// Format quirks:
+//   - IP is stored in LITTLE-ENDIAN hex (bytes reversed)
+//     "0100007F" = 01.00.00.7F reversed = 127.0.0.1
+//   - Port is stored in BIG-ENDIAN hex (normal)
+//     "1F90" = 0x1F90 = 8080
+func parseAddress(s string) (net.IP, uint16, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return nil, 0, fmt.Errorf("invalid address: %s", s)
+	}
+
+	ipHex, err := hex.DecodeString(parts[0])
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(ipHex) != 4 {
+		return nil, 0, fmt.Errorf("invalid IP hex length: %d", len(ipHex))
+	}
+
+	// Reverse bytes: little-endian -> normal order
+	// ipHex = [01, 00, 00, 7F] for "0100007F"
+	// reversed = [7F, 00, 00, 01] = 127.0.0.1
+	ip := net.IP{ipHex[3], ipHex[2], ipHex[1], ipHex[0]}
+
+	// Parse port as hex (big-endian, no reversal needed)
+	var port uint16
+	fmt.Sscanf(parts[1], "%X", &port)
+
+	return ip, port, nil
+}

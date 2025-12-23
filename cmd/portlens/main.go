@@ -5,11 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 
 	"github.com/hwang-fu/portlens/internal/capture"
 	"github.com/hwang-fu/portlens/internal/output"
 	"github.com/hwang-fu/portlens/internal/parser"
+	"github.com/hwang-fu/portlens/internal/procfs"
 )
 
 var version = "dev"
@@ -29,6 +31,20 @@ func getDirection(srcIP, dstIP string, localIPs map[string]bool) string {
 	return "unknown"
 }
 
+func lookupProcess(protocol string, srcIP, dstIP net.IP, srcPort, dstPort uint16) *procfs.ProcessInfo {
+	inode, err := procfs.FindSocketInode(protocol, srcIP, srcPort, dstIP, dstPort)
+	if err != nil || inode == 0 {
+		return nil
+	}
+
+	proc, err := procfs.FindProcessBySocket(inode)
+	if err != nil {
+		return nil
+	}
+
+	return proc
+}
+
 func main() {
 	// Define flags
 	var (
@@ -38,6 +54,8 @@ func main() {
 		port          = flag.Int("port", 0, "filter by port number (0 = all ports)")
 		ip            = flag.String("ip", "", "filter by IP address (empty = all IPs)")
 		direction     = flag.String("direction", "all", "filter by direction: in, out, or all")
+		process       = flag.String("process", "", "filter by process name")
+		pid           = flag.Int("pid", 0, "filter by process ID")
 	)
 
 	// Short aliases
@@ -128,6 +146,17 @@ func main() {
 				continue
 			}
 
+			// Lookup process info
+			proc := lookupProcess("tcp", ipv4Packet.SrcIP, ipv4Packet.DstIP, tcpSegment.SrcPort, tcpSegment.DstPort)
+
+			// Process filters
+			if *process != "" && (proc == nil || proc.Name != *process) {
+				continue
+			}
+			if *pid != 0 && (proc == nil || proc.PID != *pid) {
+				continue
+			}
+
 			record := output.PacketRecord{
 				Timestamp: output.Now(),
 				Protocol:  "TCP",
@@ -142,6 +171,13 @@ func main() {
 					Flags: parser.FormatFlags(tcpSegment.Flags),
 				},
 			}
+
+			// Add process info if found
+			if proc != nil {
+				record.PID = proc.PID
+				record.ProcessName = proc.Name
+			}
+
 			json.NewEncoder(os.Stdout).Encode(record)
 
 		case parser.ProtocolUDP:
@@ -160,6 +196,17 @@ func main() {
 				continue
 			}
 
+			// Lookup process info
+			proc := lookupProcess("udp", ipv4Packet.SrcIP, ipv4Packet.DstIP, udpDatagram.SrcPort, udpDatagram.DstPort)
+
+			// Process filters
+			if *process != "" && (proc == nil || proc.Name != *process) {
+				continue
+			}
+			if *pid != 0 && (proc == nil || proc.PID != *pid) {
+				continue
+			}
+
 			record := output.PacketRecord{
 				Timestamp: output.Now(),
 				Protocol:  "UDP",
@@ -172,6 +219,13 @@ func main() {
 					Length: udpDatagram.Length,
 				},
 			}
+
+			// Add process info if found (ADD THIS)
+			if proc != nil {
+				record.PID = proc.PID
+				record.ProcessName = proc.Name
+			}
+
 			json.NewEncoder(os.Stdout).Encode(record)
 		default:
 			// Skip non-TCP/UDP packets

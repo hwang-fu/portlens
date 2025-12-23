@@ -12,6 +12,10 @@ type PacketRecord struct {
 	DstPort   uint16 `json:"dst_port"`
 	Direction string `json:"direction"` // "in", "out", or "unknown"
 
+	// Process info (may be empty if not found)
+	PID         int    `json:"pid,omitempty"`
+	ProcessName string `json:"process,omitempty"`
+
 	// Protocol-specific fields (only one will be set)
 	TCP *TCPInfo `json:"tcp,omitempty"`
 	UDP *UDPInfo `json:"udp,omitempty"`
