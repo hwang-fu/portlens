@@ -62,3 +62,12 @@ func (t *Tracker) getOrCreateConnection(key ConnKey) (*Connection, bool) {
 func (t *Tracker) removeConnection(key ConnKey) {
 	delete(t.connections, key)
 }
+
+// emitEvent sends an event to the events channel (non-blocking).
+func (t *Tracker) emitEvent(event Event) {
+	select {
+	case t.events <- event:
+	default:
+		// Channel full, drop event (could log warning here)
+	}
+}
