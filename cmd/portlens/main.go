@@ -88,6 +88,12 @@ func main() {
 				log.Printf("parse TCP error: %v", err)
 				continue
 			}
+
+			// Port filter: check if src or dst port matches
+			if *port != 0 && tcpSegment.SrcPort != uint16(*port) && tcpSegment.DstPort != uint16(*port) {
+				continue
+			}
+
 			record := output.PacketRecord{
 				Timestamp: output.Now(),
 				Protocol:  "TCP",
@@ -113,6 +119,12 @@ func main() {
 				log.Printf("parse UDP error: %v", err)
 				continue
 			}
+
+			// Port filter: check if src or dst port matches
+			if *port != 0 && udpDatagram.SrcPort != uint16(*port) && udpDatagram.DstPort != uint16(*port) {
+				continue
+			}
+
 			record := output.PacketRecord{
 				Timestamp: output.Now(),
 				Protocol:  "UDP",
