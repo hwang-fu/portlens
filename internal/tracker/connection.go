@@ -1,5 +1,7 @@
 package tracker
 
+import "fmt"
+
 // ConnKey uniquely identifies a TCP connection (5-tuple).
 // We normalize the key so that both directions map to the same connection.
 type ConnKey struct {
@@ -8,4 +10,9 @@ type ConnKey struct {
 	DstIP    string
 	DstPort  uint16
 	Protocol string // "TCP" or "UDP"
+}
+
+// String returns a human-readable representation of the connection key.
+func (k ConnKey) String() string {
+	return fmt.Sprintf("%s:%d -> %s:%d (%s)", k.SrcIP, k.SrcPort, k.DstIP, k.DstPort, k.Protocol)
 }
