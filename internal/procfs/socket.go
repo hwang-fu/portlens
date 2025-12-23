@@ -34,6 +34,35 @@ func FindSocketInode(
 	default:
 		return 0, fmt.Errorf("unsupported protocol: %s", protocol)
 	}
+
+	entries, err := parseNetFile(path)
+	if err != nil {
+		return 0, err
+	}
+
+	// Try matching as local -> remote (outbound packet from our perspective)
+	for _, entry := range entries {
+		matched := entry.LocalIP.Equal(srcIP) &&
+			entry.LocalPort == srcPort &&
+			entry.RemoteIP.Equal(dstIP) &&
+			entry.RemotePort == dstPort
+		if matched {
+			return entry.Inode, nil
+		}
+	}
+
+	// Try matching as remote -> local (inbound packet from our perspective)
+	// The socket owner sees it reversed
+	for _, e := range entries {
+		if e.LocalIP.Equal(dstIP) &&
+			e.LocalPort == dstPort &&
+			e.RemoteIP.Equal(srcIP) &&
+			e.RemotePort == srcPort {
+			return e.Inode, nil
+		}
+	}
+
+	return 0, nil // Not found (socket may have closed, or kernel socket)
 }
 
 // parseNetFile parses /proc/net/tcp or /proc/net/udp.
