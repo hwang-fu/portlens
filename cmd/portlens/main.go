@@ -12,9 +12,53 @@ import (
 	"github.com/hwang-fu/portlens/internal/output"
 	"github.com/hwang-fu/portlens/internal/parser"
 	"github.com/hwang-fu/portlens/internal/procfs"
+	"github.com/hwang-fu/portlens/internal/tracker"
 )
 
 var version = "dev"
+
+// config holds all runtime configuration from flags.
+type config struct {
+	interfaceName string
+	protocol      string
+	port          int
+	ip            string
+	direction     string
+	process       string
+	pid           int
+	stateful      bool
+}
+
+var cfg config
+
+func parseFlags() {
+	flag.StringVar(&cfg.interfaceName, "interface", "", "network interface to capture on")
+	flag.StringVar(&cfg.interfaceName, "i", "", "network interface (shorthand)")
+	flag.StringVar(&cfg.protocol, "protocol", "all", "protocol to capture: tcp, udp, or all")
+	flag.IntVar(&cfg.port, "port", 0, "filter by port number (0 = all ports)")
+	flag.IntVar(&cfg.port, "p", 0, "filter by port (shorthand)")
+	flag.StringVar(&cfg.ip, "ip", "", "filter by IP address (empty = all IPs)")
+	flag.StringVar(&cfg.direction, "direction", "all", "filter by direction: in, out, or all")
+	flag.StringVar(&cfg.process, "process", "", "filter by process name")
+	flag.IntVar(&cfg.pid, "pid", 0, "filter by process ID")
+	flag.BoolVar(&cfg.stateful, "stateful", false, "enable connection state tracking")
+
+	showVersion := flag.Bool("version", false, "show version and exit")
+
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("portlens", version)
+		os.Exit(0)
+	}
+
+	if cfg.interfaceName == "" {
+		fmt.Fprintln(os.Stderr, "error: --interface (-i) is required")
+		fmt.Fprintln(os.Stderr, "usage: portlens -i <interface> [--protocol tcp|udp|all]")
+		fmt.Fprintln(os.Stderr, "example: sudo portlens -i lo")
+		os.Exit(1)
+	}
+}
 
 // getDirection returns "in", "out", or "unknown" based on src/dst IPs.
 func getDirection(srcIP, dstIP string, localIPs map[string]bool) string {
@@ -22,15 +66,15 @@ func getDirection(srcIP, dstIP string, localIPs map[string]bool) string {
 	dstLocal := localIPs[dstIP]
 
 	if srcLocal && !dstLocal {
-		return "out" // From local to remote
+		return "out"
 	}
 	if !srcLocal && dstLocal {
-		return "in" // From remote to local
+		return "in"
 	}
-	// Both local (loopback) or both remote (shouldn't happen)
 	return "unknown"
 }
 
+// lookupProcess finds the process owning a socket.
 func lookupProcess(protocol string, srcIP, dstIP net.IP, srcPort, dstPort uint16) *procfs.ProcessInfo {
 	inode, err := procfs.FindSocketInode(protocol, srcIP, srcPort, dstIP, dstPort)
 	if err != nil || inode == 0 {
@@ -41,39 +85,159 @@ func lookupProcess(protocol string, srcIP, dstIP net.IP, srcPort, dstPort uint16
 	if err != nil {
 		return nil
 	}
-
 	return proc
 }
 
-func main() {
-	// Define flags
-	var (
-		interfaceName = flag.String("interface", "", "network interface to capture on")
-		protocol      = flag.String("protocol", "all", "protocol to capture: tcp, udp, or all")
-		showVersion   = flag.Bool("version", false, "show version and exit")
-		port          = flag.Int("port", 0, "filter by port number (0 = all ports)")
-		ip            = flag.String("ip", "", "filter by IP address (empty = all IPs)")
-		direction     = flag.String("direction", "all", "filter by direction: in, out, or all")
-		process       = flag.String("process", "", "filter by process name")
-		pid           = flag.Int("pid", 0, "filter by process ID")
-	)
+// matchesProcessFilter checks if proc matches the configured process filters.
+// Returns true if the packet should be processed, false if it should be skipped.
+func matchesProcessFilter(proc *procfs.ProcessInfo) bool {
+	if cfg.process != "" && (proc == nil || proc.Name != cfg.process) {
+		return false
+	}
+	if cfg.pid != 0 && (proc == nil || proc.PID != cfg.pid) {
+		return false
+	}
+	return true
+}
 
-	// Short aliases
-	flag.StringVar(interfaceName, "i", "", "network interface (shorthand)")
-	flag.IntVar(port, "p", 0, "filter by port (shorthand)")
-
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Println("portlens", version)
-		os.Exit(0)
+// setupTracker creates a connection tracker and starts its event handler.
+// Returns nil if stateful mode is disabled.
+func setupTracker() *tracker.Tracker {
+	if !cfg.stateful {
+		return nil
 	}
 
-	if *interfaceName == "" {
-		fmt.Fprintln(os.Stderr, "error: --interface (-i) is required")
-		fmt.Fprintln(os.Stderr, "usage: portlens -i <interface> [--protocol tcp|udp|all]")
-		fmt.Fprintln(os.Stderr, "example: sudo portlens -i lo")
-		os.Exit(1)
+	t := tracker.New(100)
+
+	go func() {
+		for event := range t.Events() {
+			eventRecord := map[string]any{
+				"event_type": event.Type,
+				"timestamp":  event.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z"),
+				"connection": map[string]any{
+					"src_ip":       event.Connection.Key.SrcIP,
+					"src_port":     event.Connection.Key.SrcPort,
+					"dst_ip":       event.Connection.Key.DstIP,
+					"dst_port":     event.Connection.Key.DstPort,
+					"protocol":     event.Connection.Key.Protocol,
+					"state":        event.Connection.State.String(),
+					"duration":     event.Connection.Duration().String(),
+					"packets_sent": event.Connection.PacketsSent,
+					"packets_recv": event.Connection.PacketsReceived,
+					"bytes_sent":   event.Connection.BytesSent,
+					"bytes_recv":   event.Connection.BytesReceived,
+				},
+			}
+			json.NewEncoder(os.Stdout).Encode(eventRecord)
+		}
+	}()
+
+	return t
+}
+
+// handleTCPPacket processes a TCP packet and outputs the record.
+// Returns false if the packet was filtered out.
+func handleTCPPacket(ipv4 *parser.IPv4Packet, dir string, connTracker *tracker.Tracker) bool {
+	tcp, err := parser.ParseTCP(ipv4.Payload)
+	if err != nil {
+		log.Printf("parse TCP error: %v", err)
+		return false
+	}
+
+	// Port filter
+	if cfg.port != 0 && tcp.SrcPort != uint16(cfg.port) && tcp.DstPort != uint16(cfg.port) {
+		return false
+	}
+
+	// Process lookup and filter
+	proc := lookupProcess("tcp", ipv4.SrcIP, ipv4.DstIP, tcp.SrcPort, tcp.DstPort)
+	if !matchesProcessFilter(proc) {
+		return false
+	}
+
+	// Connection tracking
+	if connTracker != nil {
+		connTracker.ProcessTCPPacket(
+			ipv4.SrcIP.String(), tcp.SrcPort,
+			ipv4.DstIP.String(), tcp.DstPort,
+			tcp.Flags,
+			len(tcp.Payload),
+			dir == "out",
+		)
+	}
+
+	// Build and output record
+	record := output.PacketRecord{
+		Timestamp: output.Now(),
+		Protocol:  "TCP",
+		SrcIP:     ipv4.SrcIP.String(),
+		SrcPort:   tcp.SrcPort,
+		DstIP:     ipv4.DstIP.String(),
+		DstPort:   tcp.DstPort,
+		Direction: dir,
+		TCP: &output.TCPInfo{
+			Seq:   tcp.SeqNum,
+			Ack:   tcp.AckNum,
+			Flags: parser.FormatFlags(tcp.Flags),
+		},
+	}
+	if proc != nil {
+		record.PID = proc.PID
+		record.ProcessName = proc.Name
+	}
+
+	json.NewEncoder(os.Stdout).Encode(record)
+	return true
+}
+
+// handleUDPPacket processes a UDP packet and outputs the record.
+// Returns false if the packet was filtered out.
+func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
+	udp, err := parser.ParseUDP(ipv4.Payload)
+	if err != nil {
+		log.Printf("parse UDP error: %v", err)
+		return false
+	}
+
+	// Port filter
+	if cfg.port != 0 && udp.SrcPort != uint16(cfg.port) && udp.DstPort != uint16(cfg.port) {
+		return false
+	}
+
+	// Process lookup and filter
+	proc := lookupProcess("udp", ipv4.SrcIP, ipv4.DstIP, udp.SrcPort, udp.DstPort)
+	if !matchesProcessFilter(proc) {
+		return false
+	}
+
+	// Build and output record
+	record := output.PacketRecord{
+		Timestamp: output.Now(),
+		Protocol:  "UDP",
+		SrcIP:     ipv4.SrcIP.String(),
+		SrcPort:   udp.SrcPort,
+		DstIP:     ipv4.DstIP.String(),
+		DstPort:   udp.DstPort,
+		Direction: dir,
+		UDP: &output.UDPInfo{
+			Length: udp.Length,
+		},
+	}
+	if proc != nil {
+		record.PID = proc.PID
+		record.ProcessName = proc.Name
+	}
+
+	json.NewEncoder(os.Stdout).Encode(record)
+	return true
+}
+
+func main() {
+	parseFlags()
+
+	connTracker := setupTracker()
+	if connTracker != nil {
+		defer connTracker.Close()
 	}
 
 	localIPs, err := capture.LocalIPs()
@@ -87,11 +251,11 @@ func main() {
 	}
 	defer sock.Close()
 
-	if err := sock.Bind(*interfaceName); err != nil {
+	if err := sock.Bind(cfg.interfaceName); err != nil {
 		log.Fatalf("bind: %v", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "capturing on %s...\n", *interfaceName)
+	fmt.Fprintf(os.Stderr, "capturing on %s...\n", cfg.interfaceName)
 
 	buf := make([]byte, 65535)
 	for {
@@ -106,130 +270,38 @@ func main() {
 			log.Printf("parse error: %v", err)
 			continue
 		}
-		// Skip non-IPv4 packets by far
+
 		if frame.EtherType != parser.EtherTypeIPv4 {
 			continue
 		}
 
-		ipv4Packet, err := parser.ParseIPv4(frame.Payload)
+		ipv4, err := parser.ParseIPv4(frame.Payload)
 		if err != nil {
 			log.Printf("parse ipv4 error: %v", err)
 			continue
 		}
 
-		// IP filter: check if src or dst IP matches the filtering ip (if provided)
-		if *ip != "" && ipv4Packet.SrcIP.String() != *ip && ipv4Packet.DstIP.String() != *ip {
+		// IP filter
+		if cfg.ip != "" && ipv4.SrcIP.String() != cfg.ip && ipv4.DstIP.String() != cfg.ip {
 			continue
 		}
 
-		// Determine packet direction
-		dir := getDirection(ipv4Packet.SrcIP.String(), ipv4Packet.DstIP.String(), localIPs)
 		// Direction filter
-		if *direction != "all" && dir != *direction {
+		dir := getDirection(ipv4.SrcIP.String(), ipv4.DstIP.String(), localIPs)
+		if cfg.direction != "all" && dir != cfg.direction {
 			continue
 		}
 
-		switch ipv4Packet.Protocol {
+		// Protocol handling
+		switch ipv4.Protocol {
 		case parser.ProtocolTCP:
-			if *protocol == "udp" {
-				continue // Skip TCP when filtering for UDP only
+			if cfg.protocol != "udp" {
+				handleTCPPacket(ipv4, dir, connTracker)
 			}
-
-			tcpSegment, err := parser.ParseTCP(ipv4Packet.Payload)
-			if err != nil {
-				log.Printf("parse TCP error: %v", err)
-				continue
-			}
-
-			// Port filter: check if src or dst port matches
-			if *port != 0 && tcpSegment.SrcPort != uint16(*port) && tcpSegment.DstPort != uint16(*port) {
-				continue
-			}
-
-			// Lookup process info
-			proc := lookupProcess("tcp", ipv4Packet.SrcIP, ipv4Packet.DstIP, tcpSegment.SrcPort, tcpSegment.DstPort)
-
-			// Process filters
-			if *process != "" && (proc == nil || proc.Name != *process) {
-				continue
-			}
-			if *pid != 0 && (proc == nil || proc.PID != *pid) {
-				continue
-			}
-
-			record := output.PacketRecord{
-				Timestamp: output.Now(),
-				Protocol:  "TCP",
-				SrcIP:     ipv4Packet.SrcIP.String(),
-				SrcPort:   tcpSegment.SrcPort,
-				DstIP:     ipv4Packet.DstIP.String(),
-				DstPort:   tcpSegment.DstPort,
-				Direction: dir,
-				TCP: &output.TCPInfo{
-					Seq:   tcpSegment.SeqNum,
-					Ack:   tcpSegment.AckNum,
-					Flags: parser.FormatFlags(tcpSegment.Flags),
-				},
-			}
-
-			// Add process info if found
-			if proc != nil {
-				record.PID = proc.PID
-				record.ProcessName = proc.Name
-			}
-
-			json.NewEncoder(os.Stdout).Encode(record)
-
 		case parser.ProtocolUDP:
-			if *protocol == "tcp" {
-				continue // Skip UDP when filtering for TCP only
+			if cfg.protocol != "tcp" {
+				handleUDPPacket(ipv4, dir)
 			}
-
-			udpDatagram, err := parser.ParseUDP(ipv4Packet.Payload)
-			if err != nil {
-				log.Printf("parse UDP error: %v", err)
-				continue
-			}
-
-			// Port filter: check if src or dst port matches
-			if *port != 0 && udpDatagram.SrcPort != uint16(*port) && udpDatagram.DstPort != uint16(*port) {
-				continue
-			}
-
-			// Lookup process info
-			proc := lookupProcess("udp", ipv4Packet.SrcIP, ipv4Packet.DstIP, udpDatagram.SrcPort, udpDatagram.DstPort)
-
-			// Process filters
-			if *process != "" && (proc == nil || proc.Name != *process) {
-				continue
-			}
-			if *pid != 0 && (proc == nil || proc.PID != *pid) {
-				continue
-			}
-
-			record := output.PacketRecord{
-				Timestamp: output.Now(),
-				Protocol:  "UDP",
-				SrcIP:     ipv4Packet.SrcIP.String(),
-				SrcPort:   udpDatagram.SrcPort,
-				DstIP:     ipv4Packet.DstIP.String(),
-				DstPort:   udpDatagram.DstPort,
-				Direction: dir,
-				UDP: &output.UDPInfo{
-					Length: udpDatagram.Length,
-				},
-			}
-
-			// Add process info if found (ADD THIS)
-			if proc != nil {
-				record.PID = proc.PID
-				record.ProcessName = proc.Name
-			}
-
-			json.NewEncoder(os.Stdout).Encode(record)
-		default:
-			// Skip non-TCP/UDP packets
-			continue
 		}
 	}
 }
