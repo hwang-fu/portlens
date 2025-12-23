@@ -31,3 +31,22 @@ const (
 	StateLastAck
 	StateTimeWait
 )
+
+// String returns the state name.
+func (s TCPState) String() string {
+	names := []string{
+		"CLOSED",
+		"SYN_SENT",
+		"SYN_RECEIVED",
+		"ESTABLISHED",
+		"FIN_WAIT_1",
+		"FIN_WAIT_2",
+		"CLOSE_WAIT",
+		"LAST_ACK",
+		"TIME_WAIT",
+	}
+	if int(s) < len(names) {
+		return names[s]
+	}
+	return "UNKNOWN"
+}
