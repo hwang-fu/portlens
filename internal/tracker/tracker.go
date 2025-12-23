@@ -40,3 +40,19 @@ func (t *Tracker) GetConnection(key ConnKey) *Connection {
 	defer t.mu.RUnlock()
 	return t.connections[key]
 }
+
+// getOrCreateConnection returns an existing connection or creates a new one.
+// Caller must hold the write lock.
+func (t *Tracker) getOrCreateConnection(key ConnKey) (*Connection, bool) {
+	if conn, exists := t.connections[key]; exists {
+		return conn, false
+	}
+
+	conn := &Connection{
+		Key:       key,
+		State:     StateClosed,
+		StartTime: time.Now(),
+	}
+	t.connections[key] = conn
+	return conn, true
+}
