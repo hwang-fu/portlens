@@ -14,3 +14,14 @@ const (
 	TCPFlagACK = 0x10 // Acknowledgment
 	TCPFlagURG = 0x20 // Urgent (rarely used)
 )
+
+type TCPSegment struct {
+	SrcPort    uint16
+	DstPort    uint16
+	SeqNum     uint32 // Sequence number
+	AckNum     uint32 // Acknowledgment number
+	DataOffset uint8  // Header length in 32-bit words (like IHL)
+	Flags      uint8  // TCP flags (SYN, ACK, FIN, RST, etc.)
+	Window     uint16 // Flow control window size
+	Payload    []byte
+}
