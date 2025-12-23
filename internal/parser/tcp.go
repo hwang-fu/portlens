@@ -3,6 +3,7 @@ package parser
 import (
 	"encoding/binary"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -64,4 +65,34 @@ func ParseTCP(data []byte) (*TCPSegment, error) {
 		Window:     binary.BigEndian.Uint16(data[14:16]),
 		Payload:    data[headerLen:],
 	}, nil
+}
+
+// FormatFlags returns a human-readable string of TCP flags.
+// Example: flags 0x12 -> "SYN,ACK"
+func FormatFlags(flags uint8) string {
+	var names []string
+
+	if flags&TCPFlagFIN != 0 {
+		names = append(names, "FIN")
+	}
+	if flags&TCPFlagSYN != 0 {
+		names = append(names, "SYN")
+	}
+	if flags&TCPFlagRST != 0 {
+		names = append(names, "RST")
+	}
+	if flags&TCPFlagPSH != 0 {
+		names = append(names, "PSH")
+	}
+	if flags&TCPFlagACK != 0 {
+		names = append(names, "ACK")
+	}
+	if flags&TCPFlagURG != 0 {
+		names = append(names, "URG")
+	}
+
+	if len(names) == 0 {
+		return ""
+	}
+	return strings.Join(names, ",")
 }
