@@ -71,3 +71,10 @@ func (t *Tracker) emitEvent(event Event) {
 		// Channel full, drop event (could log warning here)
 	}
 }
+
+// ActiveConnections returns the number of currently tracked connections.
+func (t *Tracker) ActiveConnections() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.connections)
+}
