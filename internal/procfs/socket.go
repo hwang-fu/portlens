@@ -1,9 +1,11 @@
 package procfs
 
 import (
+	"bufio"
 	"encoding/hex"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -32,6 +34,39 @@ func FindSocketInode(
 	default:
 		return 0, fmt.Errorf("unsupported protocol: %s", protocol)
 	}
+}
+
+// parseNetFile parses /proc/net/tcp or /proc/net/udp.
+//
+// File format (columns):
+//
+//	sl: slot number
+//	local_address: hex IP:port (e.g., "0100007F:1F90" = 127.0.0.1:8080)
+//	rem_address: remote hex IP:port
+//	st: socket state
+//	... (more fields we don't need)
+//	inode: socket inode (field index 9)
+func parseNetFile(path string) ([]SocketEntry, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var entries []SocketEntry
+	scanner := bufio.NewScanner(file)
+
+	// Skip header line ("sl  local_address rem_address ...")
+	scanner.Scan()
+	for scanner.Scan() {
+		entry, err := parseLine(scanner.Text())
+		if err != nil {
+			continue // Skip malformed lines
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, scanner.Err()
 }
 
 // parseLine parses a single line from /proc/net/tcp or /proc/net/udp.
