@@ -153,8 +153,11 @@ func parseAddress(s string) (net.IP, uint16, error) {
 	if err != nil {
 		return nil, 0, err
 	}
+	if len(ipHex) != 4 {
+		return nil, 0, fmt.Errorf("invalid IP hex length: %d", len(ipHex))
+	}
 
-	// Reverse bytes: little-endian → normal order
+	// Reverse bytes: little-endian -> normal order
 	// ipHex = [01, 00, 00, 7F] for "0100007F"
 	// reversed = [7F, 00, 00, 01] = 127.0.0.1
 	ip := net.IP{ipHex[3], ipHex[2], ipHex[1], ipHex[0]}
