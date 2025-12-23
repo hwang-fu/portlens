@@ -20,10 +20,12 @@ func main() {
 		interfaceName = flag.String("interface", "", "network interface to capture on")
 		protocol      = flag.String("protocol", "all", "protocol to capture: tcp, udp, or all")
 		showVersion   = flag.Bool("version", false, "show version and exit")
+		port          = flag.Int("port", 0, "filter by port number (0 = all ports)")
 	)
 
 	// Short aliases
 	flag.StringVar(interfaceName, "i", "", "network interface (shorthand)")
+	flag.IntVar(port, "p", 0, "filter by port (shorthand)")
 
 	flag.Parse()
 
