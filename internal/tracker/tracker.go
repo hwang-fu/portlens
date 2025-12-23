@@ -33,3 +33,10 @@ func New(eventBufferSize int) *Tracker {
 func (t *Tracker) Events() <-chan Event {
 	return t.events
 }
+
+// GetConnection returns an existing connection or nil if not found.
+func (t *Tracker) GetConnection(key ConnKey) *Connection {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.connections[key]
+}
