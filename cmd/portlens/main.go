@@ -21,6 +21,7 @@ func main() {
 		protocol      = flag.String("protocol", "all", "protocol to capture: tcp, udp, or all")
 		showVersion   = flag.Bool("version", false, "show version and exit")
 		port          = flag.Int("port", 0, "filter by port number (0 = all ports)")
+		ip            = flag.String("ip", "", "filter by IP address (empty = all IPs)")
 	)
 
 	// Short aliases
@@ -74,6 +75,11 @@ func main() {
 		ipv4Packet, err := parser.ParseIPv4(frame.Payload)
 		if err != nil {
 			log.Printf("parse ipv4 error: %v", err)
+			continue
+		}
+
+		// IP filter: check if src or dst IP matches the filtering ip (if provided)
+		if *ip != "" && ipv4Packet.SrcIP.String() != *ip && ipv4Packet.DstIP.String() != *ip {
 			continue
 		}
 
