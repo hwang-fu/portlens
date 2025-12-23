@@ -10,6 +10,7 @@ type PacketRecord struct {
 	SrcPort   uint16 `json:"src_port"`
 	DstIP     string `json:"dst_ip"`
 	DstPort   uint16 `json:"dst_port"`
+	Direction string `json:"direction"` // "in", "out", or "unknown"
 
 	// Protocol-specific fields (only one will be set)
 	TCP *TCPInfo `json:"tcp,omitempty"`

@@ -14,6 +14,21 @@ import (
 
 var version = "dev"
 
+// getDirection returns "in", "out", or "unknown" based on src/dst IPs.
+func getDirection(srcIP, dstIP string, localIPs map[string]bool) string {
+	srcLocal := localIPs[srcIP]
+	dstLocal := localIPs[dstIP]
+
+	if srcLocal && !dstLocal {
+		return "out" // From local to remote
+	}
+	if !srcLocal && dstLocal {
+		return "in" // From remote to local
+	}
+	// Both local (loopback) or both remote (shouldn't happen)
+	return "unknown"
+}
+
 func main() {
 	// Define flags
 	var (
@@ -22,6 +37,7 @@ func main() {
 		showVersion   = flag.Bool("version", false, "show version and exit")
 		port          = flag.Int("port", 0, "filter by port number (0 = all ports)")
 		ip            = flag.String("ip", "", "filter by IP address (empty = all IPs)")
+		direction     = flag.String("direction", "all", "filter by direction: in, out, or all")
 	)
 
 	// Short aliases
@@ -40,6 +56,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: portlens -i <interface> [--protocol tcp|udp|all]")
 		fmt.Fprintln(os.Stderr, "example: sudo portlens -i lo")
 		os.Exit(1)
+	}
+
+	localIPs, err := capture.LocalIPs()
+	if err != nil {
+		log.Fatalf("get local IPs: %v", err)
 	}
 
 	sock, err := capture.NewSocket()
@@ -83,6 +104,13 @@ func main() {
 			continue
 		}
 
+		// Determine packet direction
+		dir := getDirection(ipv4Packet.SrcIP.String(), ipv4Packet.DstIP.String(), localIPs)
+		// Direction filter
+		if *direction != "all" && dir != *direction {
+			continue
+		}
+
 		switch ipv4Packet.Protocol {
 		case parser.ProtocolTCP:
 			if *protocol == "udp" {
@@ -107,6 +135,7 @@ func main() {
 				SrcPort:   tcpSegment.SrcPort,
 				DstIP:     ipv4Packet.DstIP.String(),
 				DstPort:   tcpSegment.DstPort,
+				Direction: dir,
 				TCP: &output.TCPInfo{
 					Seq:   tcpSegment.SeqNum,
 					Ack:   tcpSegment.AckNum,
@@ -138,6 +167,7 @@ func main() {
 				SrcPort:   udpDatagram.SrcPort,
 				DstIP:     ipv4Packet.DstIP.String(),
 				DstPort:   udpDatagram.DstPort,
+				Direction: dir,
 				UDP: &output.UDPInfo{
 					Length: udpDatagram.Length,
 				},
