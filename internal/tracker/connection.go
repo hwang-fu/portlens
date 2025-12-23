@@ -67,3 +67,11 @@ type Connection struct {
 	BytesSent       uint64
 	BytesReceived   uint64
 }
+
+// Duration returns how long the connection has been active.
+func (c *Connection) Duration() time.Duration {
+	if c.EndTime.IsZero() {
+		return time.Since(c.StartTime)
+	}
+	return c.EndTime.Sub(c.StartTime)
+}
