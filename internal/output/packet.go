@@ -13,3 +13,10 @@ type PacketRecord struct {
 	TCP *TCPInfo `json:"tcp,omitempty"`
 	UDP *UDPInfo `json:"udp,omitempty"`
 }
+
+// TCPInfo contains TCP-specific fields.
+type TCPInfo struct {
+	Seq   uint32 `json:"seq"`
+	Ack   uint32 `json:"ack"`
+	Flags string `json:"flags"`
+}
