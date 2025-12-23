@@ -19,3 +19,12 @@ type Tracker struct {
 	connections map[ConnKey]*Connection
 	events      chan Event
 }
+
+// New creates a new connection tracker.
+// eventBufferSize determines how many events can be buffered before blocking.
+func New(eventBufferSize int) *Tracker {
+	return &Tracker{
+		connections: make(map[ConnKey]*Connection),
+		events:      make(chan Event, eventBufferSize),
+	}
+}
