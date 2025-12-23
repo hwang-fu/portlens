@@ -19,3 +19,15 @@ func (k ConnKey) String() string {
 
 // TCPState represents the state of a TCP connection.
 type TCPState int
+
+const (
+	StateClosed TCPState = iota
+	StateSynSent
+	StateSynReceived
+	StateEstablished
+	StateFinWait1
+	StateFinWait2
+	StateCloseWait
+	StateLastAck
+	StateTimeWait
+)
