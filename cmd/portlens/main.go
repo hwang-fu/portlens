@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/hwang-fu/portlens/internal/capture"
+	"github.com/hwang-fu/portlens/internal/output"
 	"github.com/hwang-fu/portlens/internal/parser"
 )
 
@@ -31,7 +33,7 @@ func main() {
 		log.Fatalf("bind: %v", err)
 	}
 
-	fmt.Printf("capturing on %s...\n", interfaceName)
+	fmt.Fprintf(os.Stderr, "capturing on %s...\n", interfaceName)
 
 	buf := make([]byte, 65535)
 	for {
@@ -64,9 +66,20 @@ func main() {
 				log.Printf("parse TCP error: %v", err)
 				continue
 			}
-			fmt.Printf("\n=== TCP Packet ===\n")
-			fmt.Printf("%s:%d -> %s:%d\n", ipv4Packet.SrcIP, tcpSegment.SrcPort, ipv4Packet.DstIP, tcpSegment.DstPort)
-			fmt.Printf("Seq: %d, Ack: %d, Flags: 0x%02x\n", tcpSegment.SeqNum, tcpSegment.AckNum, tcpSegment.Flags)
+			record := output.PacketRecord{
+				Timestamp: output.Now(),
+				Protocol:  "TCP",
+				SrcIP:     ipv4Packet.SrcIP.String(),
+				SrcPort:   tcpSegment.SrcPort,
+				DstIP:     ipv4Packet.DstIP.String(),
+				DstPort:   tcpSegment.DstPort,
+				TCP: &output.TCPInfo{
+					Seq:   tcpSegment.SeqNum,
+					Ack:   tcpSegment.AckNum,
+					Flags: parser.FormatFlags(tcpSegment.Flags),
+				},
+			}
+			json.NewEncoder(os.Stdout).Encode(record)
 
 		case parser.ProtocolUDP:
 			udpDatagram, err := parser.ParseUDP(ipv4Packet.Payload)
@@ -74,9 +87,18 @@ func main() {
 				log.Printf("parse UDP error: %v", err)
 				continue
 			}
-			fmt.Printf("\n=== UDP Packet ===\n")
-			fmt.Printf("%s:%d -> %s:%d\n", ipv4Packet.SrcIP, udpDatagram.SrcPort, ipv4Packet.DstIP, udpDatagram.DstPort)
-			fmt.Printf("Length: %d\n", udpDatagram.Length)
+			record := output.PacketRecord{
+				Timestamp: output.Now(),
+				Protocol:  "UDP",
+				SrcIP:     ipv4Packet.SrcIP.String(),
+				SrcPort:   udpDatagram.SrcPort,
+				DstIP:     ipv4Packet.DstIP.String(),
+				DstPort:   udpDatagram.DstPort,
+				UDP: &output.UDPInfo{
+					Length: udpDatagram.Length,
+				},
+			}
+			json.NewEncoder(os.Stdout).Encode(record)
 		default:
 			// Skip non-TCP/UDP packets
 			continue
