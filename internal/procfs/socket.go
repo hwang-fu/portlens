@@ -34,6 +34,44 @@ func FindSocketInode(
 	}
 }
 
+// parseLine parses a single line from /proc/net/tcp or /proc/net/udp.
+//
+// Example line:
+//
+//	"   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000  0 12345 ..."
+//	    ^        ^          ^          ^                                             ^
+//	    slot     local      remote     state                                         inode (field 9)
+func parseLine(line string) (SocketEntry, error) {
+	fields := strings.Fields(line)
+	if len(fields) < 10 {
+		return SocketEntry{}, fmt.Errorf("not enough fields")
+	}
+
+	// fields[1] = local address (e.g., "0100007F:1F90")
+	localIP, localPort, err := parseAddress(fields[1])
+	if err != nil {
+		return SocketEntry{}, err
+	}
+
+	// fields[2] = remote address
+	remoteIP, remotePort, err := parseAddress(fields[2])
+	if err != nil {
+		return SocketEntry{}, err
+	}
+
+	// fields[9] = inode
+	var inode uint64
+	fmt.Sscanf(fields[9], "%d", &inode)
+
+	return SocketEntry{
+		LocalIP:    localIP,
+		LocalPort:  localPort,
+		RemoteIP:   remoteIP,
+		RemotePort: remotePort,
+		Inode:      inode,
+	}, nil
+}
+
 // parseAddress parses "0100007F:1F90" into IP and port.
 //
 // Format quirks:
