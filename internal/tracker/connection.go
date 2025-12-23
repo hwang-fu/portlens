@@ -5,8 +5,15 @@ import (
 	"time"
 )
 
-// ConnKey uniquely identifies a TCP connection (5-tuple).
-// We normalize the key so that both directions map to the same connection.
+// ConnKey uniquely identifies a connection.
+//
+// IMPORTANT: This is a normalized key, NOT the actual packet direction.
+// Both directions of a connection map to the same key. For example:
+//   - Packet A:1000 → B:80  → key = {A:1000, B:80}
+//   - Packet B:80 → A:1000  → key = {A:1000, B:80} (same key!)
+//
+// Use NormalizeKey() to create a ConnKey from packet src/dst.
+// The SrcIP/SrcPort fields represent the "lower" endpoint, not the sender.
 type ConnKey struct {
 	SrcIP    string
 	SrcPort  uint16

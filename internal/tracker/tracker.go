@@ -101,13 +101,13 @@ func (t *Tracker) ProcessTCPPacket(
 		FlagACK = 0x10
 	)
 
-	key := ConnKey{
-		SrcIP:    srcIP,
-		SrcPort:  srcPort,
-		DstIP:    dstIP,
-		DstPort:  dstPort,
-		Protocol: "TCP",
-	}
+	key := NormalizeKey(
+		srcIP,
+		srcPort,
+		dstIP,
+		dstPort,
+		"TCP",
+	)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -215,8 +215,18 @@ func (t *Tracker) ProcessTCPPacket(
 	return conn
 }
 
-// NormalizeKey returns a normalized key where the "lower" endpoint comes first.
-// This ensures both directions of a connection map to the same key.
+// NormalizeKey creates a normalized connection key from packet addresses.
+//
+// It ensures both directions of a connection produce the same key by
+// always placing the "lower" endpoint (compared lexicographically by IP,
+// then by port) in the Src fields.
+//
+// Example:
+//
+//	NormalizeKey("192.168.1.2", 80, "192.168.1.1", 5000, "TCP")
+//	NormalizeKey("192.168.1.1", 5000, "192.168.1.2", 80, "TCP")
+//
+// Both return: ConnKey{SrcIP: "192.168.1.1", SrcPort: 5000, DstIP: "192.168.1.2", DstPort: 80}
 func NormalizeKey(srcIP string, srcPort uint16, dstIP string, dstPort uint16, protocol string) ConnKey {
 	// Compare endpoints: first by IP, then by port
 	srcFirst := srcIP < dstIP || (srcIP == dstIP && srcPort < dstPort)
