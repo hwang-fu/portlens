@@ -16,3 +16,6 @@ type ConnKey struct {
 func (k ConnKey) String() string {
 	return fmt.Sprintf("%s:%d -> %s:%d (%s)", k.SrcIP, k.SrcPort, k.DstIP, k.DstPort, k.Protocol)
 }
+
+// TCPState represents the state of a TCP connection.
+type TCPState int
