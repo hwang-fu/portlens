@@ -78,3 +78,8 @@ func (t *Tracker) ActiveConnections() int {
 	defer t.mu.RUnlock()
 	return len(t.connections)
 }
+
+// Close closes the events channel.
+func (t *Tracker) Close() {
+	close(t.events)
+}
