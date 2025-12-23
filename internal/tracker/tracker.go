@@ -56,3 +56,9 @@ func (t *Tracker) getOrCreateConnection(key ConnKey) (*Connection, bool) {
 	t.connections[key] = conn
 	return conn, true
 }
+
+// removeConnection removes a connection from tracking.
+// Caller must hold the write lock.
+func (t *Tracker) removeConnection(key ConnKey) {
+	delete(t.connections, key)
+}
