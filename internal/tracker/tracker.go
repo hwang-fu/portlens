@@ -83,3 +83,134 @@ func (t *Tracker) ActiveConnections() int {
 func (t *Tracker) Close() {
 	close(t.events)
 }
+
+// ProcessTCPPacket processes a TCP packet and updates connection state.
+// Returns the connection and any state change event.
+func (t *Tracker) ProcessTCPPacket(
+	srcIP string, srcPort uint16,
+	dstIP string, dstPort uint16,
+	flags uint8,
+	payloadLen int,
+	isOutbound bool,
+) *Connection {
+	// TCP flag constants (should match parser package)
+	const (
+		FlagFIN = 0x01
+		FlagSYN = 0x02
+		FlagRST = 0x04
+		FlagACK = 0x10
+	)
+
+	key := ConnKey{
+		SrcIP:    srcIP,
+		SrcPort:  srcPort,
+		DstIP:    dstIP,
+		DstPort:  dstPort,
+		Protocol: "TCP",
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	conn, isNew := t.getOrCreateConnection(key)
+	oldState := conn.State
+
+	// Update statistics
+	if isOutbound {
+		conn.PacketsSent++
+		conn.BytesSent += uint64(payloadLen)
+	} else {
+		conn.PacketsReceived++
+		conn.BytesReceived += uint64(payloadLen)
+	}
+
+	// Handle RST - immediate close
+	if flags&FlagRST != 0 {
+		conn.State = StateClosed
+		conn.EndTime = time.Now()
+		t.emitEvent(Event{
+			Type:       "closed",
+			Connection: conn,
+			OldState:   oldState,
+			Timestamp:  time.Now(),
+		})
+		t.removeConnection(key)
+		return conn
+	}
+
+	// State machine transitions
+	switch conn.State {
+	case StateClosed:
+		if flags&FlagSYN != 0 && flags&FlagACK == 0 {
+			// SYN only - connection initiation
+			conn.State = StateSynSent
+			if isNew {
+				t.emitEvent(Event{
+					Type:       "opened",
+					Connection: conn,
+					Timestamp:  time.Now(),
+				})
+			}
+		}
+
+	case StateSynSent:
+		if flags&FlagSYN != 0 && flags&FlagACK != 0 {
+			// SYN+ACK - server responding
+			conn.State = StateSynReceived
+		}
+
+	case StateSynReceived:
+		if flags&FlagACK != 0 && flags&FlagSYN == 0 {
+			// ACK only - handshake complete
+			conn.State = StateEstablished
+			t.emitEvent(Event{
+				Type:       "state_change",
+				Connection: conn,
+				OldState:   oldState,
+				Timestamp:  time.Now(),
+			})
+		}
+
+	case StateEstablished:
+		if flags&FlagFIN != 0 {
+			// FIN received - start closing
+			conn.State = StateFinWait1
+		}
+
+	case StateFinWait1:
+		if flags&FlagACK != 0 && flags&FlagFIN == 0 {
+			conn.State = StateFinWait2
+		} else if flags&FlagFIN != 0 {
+			conn.State = StateLastAck
+		}
+
+	case StateFinWait2:
+		if flags&FlagFIN != 0 {
+			conn.State = StateTimeWait
+			conn.EndTime = time.Now()
+			t.emitEvent(Event{
+				Type:       "closed",
+				Connection: conn,
+				OldState:   oldState,
+				Timestamp:  time.Now(),
+			})
+			// In real implementation, would wait for TIME_WAIT timeout
+			t.removeConnection(key)
+		}
+
+	case StateLastAck:
+		if flags&FlagACK != 0 {
+			conn.State = StateClosed
+			conn.EndTime = time.Now()
+			t.emitEvent(Event{
+				Type:       "closed",
+				Connection: conn,
+				OldState:   oldState,
+				Timestamp:  time.Now(),
+			})
+			t.removeConnection(key)
+		}
+	}
+
+	return conn
+}
