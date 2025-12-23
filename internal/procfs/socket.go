@@ -62,6 +62,32 @@ func FindSocketInode(
 		}
 	}
 
+	// Try matching against listening sockets
+	// A listening socket has remote=0.0.0.0:0 (waiting for any client)
+	// Match if:
+	//   - dst port equals the listening socket's local port
+	//   - dst IP equals listening socket's local IP OR local IP is 0.0.0.0 (wildcard)
+	zeroIP := net.IPv4(0, 0, 0, 0)
+	for _, e := range entries {
+		isListening := e.RemoteIP.Equal(zeroIP) && e.RemotePort == 0
+		if isListening && e.LocalPort == dstPort {
+			if e.LocalIP.Equal(dstIP) || e.LocalIP.Equal(zeroIP) {
+				return e.Inode, nil
+			}
+		}
+	}
+
+	// Also check for outgoing packets FROM a server
+	// (e.g., server responding on its listening port)
+	for _, e := range entries {
+		isListening := e.RemoteIP.Equal(zeroIP) && e.RemotePort == 0
+		if isListening && e.LocalPort == srcPort {
+			if e.LocalIP.Equal(srcIP) || e.LocalIP.Equal(zeroIP) {
+				return e.Inode, nil
+			}
+		}
+	}
+
 	return 0, nil // Not found (socket may have closed, or kernel socket)
 }
 
