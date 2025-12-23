@@ -30,5 +30,5 @@ type UDPInfo struct {
 
 // Now returns the current time formatted as ISO 8601 with milliseconds.
 func Now() string {
-	return time.Now().UTC().Format("2002-04-22T17:30:15.000Z")
+	return time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 }
