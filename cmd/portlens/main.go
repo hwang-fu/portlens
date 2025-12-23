@@ -51,9 +51,29 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("\n=== Packet: %d bytes ===\n", n)
-		fmt.Printf("Src MAC: %s\n", frame.SrcMAC)
-		fmt.Printf("Dst MAC: %s\n", frame.DestMAC)
-		fmt.Printf("Payload: %d bytes\n", len(frame.Payload))
+		ipv4Packet, err := parser.ParseIPv4(frame.Payload)
+		if err != nil {
+			log.Printf("parse ipv4 error: %v", err)
+			continue
+		}
+
+		protocolName := ""
+		switch ipv4Packet.Protocol {
+		case parser.ProtocolTCP:
+			protocolName = "TCP"
+		case parser.ProtocolUDP:
+			protocolName = "UDP"
+		default:
+			// Skip non-TCP/UDP packets by far
+			continue
+		}
+
+		// fmt.Printf("\n=== Packet: %d bytes ===\n", n)
+		// fmt.Printf("Src MAC: %s\n", frame.SrcMAC)
+		// fmt.Printf("Dst MAC: %s\n", frame.DestMAC)
+		// fmt.Printf("Payload: %d bytes\n", len(frame.Payload))
+		fmt.Printf("\n=== %s Packet ===\n", protocolName)
+		fmt.Printf("Src: %s -> Dst: %s\n", ipv4Packet.SrcIP, ipv4Packet.DstIP)
+		fmt.Printf("TTL: %d, Payload: %d bytes\n", ipv4Packet.TTL, len(ipv4Packet.Payload))
 	}
 }
