@@ -1,6 +1,9 @@
 package tracker
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ConnKey uniquely identifies a TCP connection (5-tuple).
 // We normalize the key so that both directions map to the same connection.
@@ -49,4 +52,18 @@ func (s TCPState) String() string {
 		return names[s]
 	}
 	return "UNKNOWN"
+}
+
+// Connection tracks the state and statistics of a single connection.
+type Connection struct {
+	Key       ConnKey
+	State     TCPState
+	StartTime time.Time
+	EndTime   time.Time
+
+	// Statistics
+	PacketsSent     uint64
+	PacketsReceived uint64
+	BytesSent       uint64
+	BytesReceived   uint64
 }
