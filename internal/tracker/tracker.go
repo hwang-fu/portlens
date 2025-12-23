@@ -214,3 +214,27 @@ func (t *Tracker) ProcessTCPPacket(
 
 	return conn
 }
+
+// NormalizeKey returns a normalized key where the "lower" endpoint comes first.
+// This ensures both directions of a connection map to the same key.
+func NormalizeKey(srcIP string, srcPort uint16, dstIP string, dstPort uint16, protocol string) ConnKey {
+	// Compare endpoints: first by IP, then by port
+	srcFirst := srcIP < dstIP || (srcIP == dstIP && srcPort < dstPort)
+
+	if srcFirst {
+		return ConnKey{
+			SrcIP:    srcIP,
+			SrcPort:  srcPort,
+			DstIP:    dstIP,
+			DstPort:  dstPort,
+			Protocol: protocol,
+		}
+	}
+	return ConnKey{
+		SrcIP:    dstIP,
+		SrcPort:  dstPort,
+		DstIP:    srcIP,
+		DstPort:  srcPort,
+		Protocol: protocol,
+	}
+}
