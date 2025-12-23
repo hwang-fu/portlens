@@ -39,9 +39,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Silence unused variable warning for now - will use in protocol filtering
-	_ = protocol
-
 	sock, err := capture.NewSocket()
 	if err != nil {
 		log.Fatalf("create socket: %v", err)
@@ -80,6 +77,10 @@ func main() {
 
 		switch ipv4Packet.Protocol {
 		case parser.ProtocolTCP:
+			if *protocol == "udp" {
+				continue // Skip TCP when filtering for UDP only
+			}
+
 			tcpSegment, err := parser.ParseTCP(ipv4Packet.Payload)
 			if err != nil {
 				log.Printf("parse TCP error: %v", err)
@@ -101,6 +102,10 @@ func main() {
 			json.NewEncoder(os.Stdout).Encode(record)
 
 		case parser.ProtocolUDP:
+			if *protocol == "tcp" {
+				continue // Skip UDP when filtering for TCP only
+			}
+
 			udpDatagram, err := parser.ParseUDP(ipv4Packet.Payload)
 			if err != nil {
 				log.Printf("parse UDP error: %v", err)
