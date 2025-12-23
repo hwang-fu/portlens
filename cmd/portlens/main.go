@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -14,26 +15,44 @@ import (
 var version = "dev"
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("usage: portlens <interface>")
-		// Use `ip link show` to list available interfaces.
-		// To test with loopback: run `sudo ./portlens lo` then `ping 127.0.0.1` in another terminal.
-		fmt.Println("example: sudo ./portlens lo")
+	// Define flags
+	var (
+		interfaceName = flag.String("interface", "", "network interface to capture on")
+		protocol      = flag.String("protocol", "all", "protocol to capture: tcp, udp, or all")
+		showVersion   = flag.Bool("version", false, "show version and exit")
+	)
+
+	// Short aliases
+	flag.StringVar(interfaceName, "i", "", "network interface (shorthand)")
+
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("portlens", version)
+		os.Exit(0)
+	}
+
+	if *interfaceName == "" {
+		fmt.Fprintln(os.Stderr, "error: --interface (-i) is required")
+		fmt.Fprintln(os.Stderr, "usage: portlens -i <interface> [--protocol tcp|udp|all]")
+		fmt.Fprintln(os.Stderr, "example: sudo portlens -i lo")
 		os.Exit(1)
 	}
 
-	interfaceName := os.Args[1]
+	// Silence unused variable warning for now - will use in protocol filtering
+	_ = protocol
+
 	sock, err := capture.NewSocket()
 	if err != nil {
 		log.Fatalf("create socket: %v", err)
 	}
 	defer sock.Close()
 
-	if err := sock.Bind(interfaceName); err != nil {
+	if err := sock.Bind(*interfaceName); err != nil {
 		log.Fatalf("bind: %v", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "capturing on %s...\n", interfaceName)
+	fmt.Fprintf(os.Stderr, "capturing on %s...\n", *interfaceName)
 
 	buf := make([]byte, 65535)
 	for {
