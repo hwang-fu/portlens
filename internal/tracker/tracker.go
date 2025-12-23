@@ -7,9 +7,9 @@ import (
 
 // Event represents a connection state change event.
 type Event struct {
-	Type       string // "opened", "closed", "state_change"
-	Connection *Connection
+	Type       string   // "opened", "closed", "state_change"
 	OldState   TCPState // Only for state_change events
+	Connection *Connection
 	Timestamp  time.Time
 }
 
@@ -27,4 +27,9 @@ func New(eventBufferSize int) *Tracker {
 		connections: make(map[ConnKey]*Connection),
 		events:      make(chan Event, eventBufferSize),
 	}
+}
+
+// Events returns the channel for receiving connection events.
+func (t *Tracker) Events() <-chan Event {
+	return t.events
 }
