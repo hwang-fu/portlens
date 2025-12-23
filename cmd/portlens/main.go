@@ -20,10 +20,13 @@ func main() {
 		interfaceName = flag.String("interface", "", "network interface to capture on")
 		protocol      = flag.String("protocol", "all", "protocol to capture: tcp, udp, or all")
 		showVersion   = flag.Bool("version", false, "show version and exit")
+		port          = flag.Int("port", 0, "filter by port number (0 = all ports)")
+		ip            = flag.String("ip", "", "filter by IP address (empty = all IPs)")
 	)
 
 	// Short aliases
 	flag.StringVar(interfaceName, "i", "", "network interface (shorthand)")
+	flag.IntVar(port, "p", 0, "filter by port (shorthand)")
 
 	flag.Parse()
 
@@ -75,6 +78,11 @@ func main() {
 			continue
 		}
 
+		// IP filter: check if src or dst IP matches the filtering ip (if provided)
+		if *ip != "" && ipv4Packet.SrcIP.String() != *ip && ipv4Packet.DstIP.String() != *ip {
+			continue
+		}
+
 		switch ipv4Packet.Protocol {
 		case parser.ProtocolTCP:
 			if *protocol == "udp" {
@@ -86,6 +94,12 @@ func main() {
 				log.Printf("parse TCP error: %v", err)
 				continue
 			}
+
+			// Port filter: check if src or dst port matches
+			if *port != 0 && tcpSegment.SrcPort != uint16(*port) && tcpSegment.DstPort != uint16(*port) {
+				continue
+			}
+
 			record := output.PacketRecord{
 				Timestamp: output.Now(),
 				Protocol:  "TCP",
@@ -111,6 +125,12 @@ func main() {
 				log.Printf("parse UDP error: %v", err)
 				continue
 			}
+
+			// Port filter: check if src or dst port matches
+			if *port != 0 && udpDatagram.SrcPort != uint16(*port) && udpDatagram.DstPort != uint16(*port) {
+				continue
+			}
+
 			record := output.PacketRecord{
 				Timestamp: output.Now(),
 				Protocol:  "UDP",
