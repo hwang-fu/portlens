@@ -48,7 +48,7 @@ func (s TCPState) String() string {
 		"LAST_ACK",
 		"TIME_WAIT",
 	}
-	if int(s) < len(names) {
+	if int(s) > 0 && int(s) < len(names) {
 		return names[s]
 	}
 	return "UNKNOWN"
