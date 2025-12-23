@@ -20,3 +20,8 @@ type TCPInfo struct {
 	Ack   uint32 `json:"ack"`
 	Flags string `json:"flags"`
 }
+
+// UDPInfo contains UDP-specific fields.
+type UDPInfo struct {
+	Length uint16 `json:"length"`
+}
