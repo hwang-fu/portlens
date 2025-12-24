@@ -27,10 +27,14 @@ type config struct {
 	process       string
 	pid           int
 	stateful      bool
-	verbosity     int // 0=minimal, 1=normal, 2=detailed, 3=verbose
+	verbosity     int    // 0=minimal, 1=normal, 2=detailed, 3=verbose
+	outputFile    string // output file path (empty = stdout)
 }
 
-var cfg config
+var (
+	cfg     config
+	jsonOut *json.Encoder
+)
 
 func parseFlags() {
 	flag.StringVar(&cfg.interfaceName, "interface", "", "network interface to capture on")
@@ -45,6 +49,8 @@ func parseFlags() {
 	flag.BoolVar(&cfg.stateful, "stateful", false, "enable connection state tracking")
 	flag.IntVar(&cfg.verbosity, "verbosity", 2, "output verbosity: 0=minimal, 1=normal, 2=detailed, 3=verbose")
 	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
+	flag.StringVar(&cfg.outputFile, "output", "", "write output to file (default: stdout)")
+	flag.StringVar(&cfg.outputFile, "o", "", "output file (shorthand)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
@@ -131,7 +137,7 @@ func setupTracker() *tracker.Tracker {
 					"bytes_recv":   event.Connection.BytesReceived,
 				},
 			}
-			json.NewEncoder(os.Stdout).Encode(eventRecord)
+			jsonOut.Encode(eventRecord)
 		}
 	}()
 
@@ -194,7 +200,7 @@ func handleTCPPacket(ipv4 *parser.IPv4Packet, dir string, connTracker *tracker.T
 	}
 
 	if cfg.verbosity >= 2 {
-		json.NewEncoder(os.Stdout).Encode(record)
+		jsonOut.Encode(record)
 	}
 
 	return true
@@ -243,13 +249,25 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 	}
 
 	if cfg.verbosity >= 2 {
-		json.NewEncoder(os.Stdout).Encode(record)
+		jsonOut.Encode(record)
 	}
 	return true
 }
 
 func main() {
 	parseFlags()
+
+	// Setup output destination
+	outWriter := os.Stdout
+	if cfg.outputFile != "" {
+		f, err := os.Create(cfg.outputFile)
+		if err != nil {
+			log.Fatalf("create output file: %v", err)
+		}
+		defer f.Close()
+		outWriter = f
+	}
+	jsonOut = json.NewEncoder(outWriter)
 
 	connTracker := setupTracker()
 	if connTracker != nil {
