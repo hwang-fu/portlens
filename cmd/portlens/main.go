@@ -7,12 +7,14 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/hwang-fu/portlens/internal/capture"
 	yamlconfig "github.com/hwang-fu/portlens/internal/config"
 	"github.com/hwang-fu/portlens/internal/output"
 	"github.com/hwang-fu/portlens/internal/parser"
 	"github.com/hwang-fu/portlens/internal/procfs"
+	"github.com/hwang-fu/portlens/internal/stats"
 	"github.com/hwang-fu/portlens/internal/tracker"
 )
 
@@ -365,12 +367,29 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "capturing on %s...\n", cfg.interfaceName)
 
+	// Setup stats recorder
+	var statsRecorder *stats.StatsRecorder
+	if cfg.stats {
+		statsRecorder = stats.NewRecorder()
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				statsRecorder.WriteJSON(os.Stderr)
+			}
+		}()
+	}
+
 	buf := make([]byte, 65535)
 	for {
 		n, err := sock.ReadPacket(buf)
 		if err != nil {
 			log.Printf("read error: %v", err)
 			continue
+		}
+
+		if statsRecorder != nil {
+			statsRecorder.RecordPacket(n)
 		}
 
 		frame, err := parser.ParseEthernet(buf[:n])
