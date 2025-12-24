@@ -32,3 +32,22 @@ func DefaultPath() string {
 	}
 	return filepath.Join(home, ".config", "portlens", "config.yaml")
 }
+
+// Load reads and parses a YAML config file.
+// Returns an empty config (not error) if file doesn't exist.
+func Load(path string) (*FileConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &FileConfig{}, nil
+		}
+		return nil, err
+	}
+
+	var cfg FileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
