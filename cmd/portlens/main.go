@@ -7,6 +7,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/hwang-fu/portlens/internal/capture"
@@ -36,6 +38,7 @@ type config struct {
 	logFile       string // log file path (empty = stderr)
 	configFile    string // config file path
 	stats         bool   // show performance statistics
+	graceful      bool   // enable graceful shutdown with summary
 }
 
 var (
@@ -75,6 +78,7 @@ func parseFlags() {
 	cfg.debug = fileCfg.Debug
 	cfg.logFile = fileCfg.LogFile
 	cfg.stats = fileCfg.Stats
+	cfg.graceful = fileCfg.Graceful
 
 	// Default verbosity if not set
 	if cfg.verbosity == 0 {
@@ -108,6 +112,7 @@ func parseFlags() {
 	flag.StringVar(&cfg.configFile, "config", cfg.configFile, "config file path")
 	flag.StringVar(&cfg.configFile, "c", cfg.configFile, "config file (shorthand)")
 	flag.BoolVar(&cfg.stats, "stats", cfg.stats, "show performance statistics")
+	flag.BoolVar(&cfg.graceful, "graceful", cfg.graceful, "enable graceful shutdown with summary")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
@@ -379,6 +384,19 @@ func main() {
 			}
 		}()
 	}
+
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		if cfg.graceful && statsRecorder != nil {
+			fmt.Fprintln(os.Stderr, "\n--- Shutdown Summary ---")
+			statsRecorder.WriteJSON(os.Stderr)
+		}
+		os.Exit(0)
+	}()
 
 	buf := make([]byte, 65535)
 	for {

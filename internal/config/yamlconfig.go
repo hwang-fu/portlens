@@ -23,6 +23,7 @@ type YamlConfig struct {
 	Debug     bool   `yaml:"debug"`
 	LogFile   string `yaml:"log-file"`
 	Stats     bool   `yaml:"stats"`
+	Graceful  bool   `yaml:"graceful"`
 }
 
 // DefaultPath returns the default config file path.
