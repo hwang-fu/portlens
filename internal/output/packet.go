@@ -33,6 +33,13 @@ type UDPInfo struct {
 	Length uint16 `json:"length"`
 }
 
+// PayloadInfo contains payload preview for verbose output.
+type PayloadInfo struct {
+	Size int    `json:"size"`           // Total payload size in bytes
+	Head string `json:"head,omitempty"` // First 64 bytes as hex
+	Tail string `json:"tail,omitempty"` // Last 64 bytes as hex (if different from head)
+}
+
 // Now returns the current time formatted as ISO 8601 with milliseconds.
 func Now() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
