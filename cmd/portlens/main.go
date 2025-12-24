@@ -27,6 +27,7 @@ type config struct {
 	process       string
 	pid           int
 	stateful      bool
+	verbosity     int // 0=minimal, 1=normal, 2=detailed, 3=verbose
 }
 
 var cfg config
@@ -42,6 +43,8 @@ func parseFlags() {
 	flag.StringVar(&cfg.process, "process", "", "filter by process name")
 	flag.IntVar(&cfg.pid, "pid", 0, "filter by process ID")
 	flag.BoolVar(&cfg.stateful, "stateful", false, "enable connection state tracking")
+	flag.IntVar(&cfg.verbosity, "verbosity", 2, "output verbosity: 0=minimal, 1=normal, 2=detailed, 3=verbose")
+	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
@@ -186,7 +189,14 @@ func handleTCPPacket(ipv4 *parser.IPv4Packet, dir string, connTracker *tracker.T
 		record.ProcessName = proc.Name
 	}
 
-	json.NewEncoder(os.Stdout).Encode(record)
+	if cfg.verbosity >= 3 {
+		record.Payload = output.NewPayloadInfo(tcp.Payload)
+	}
+
+	if cfg.verbosity >= 2 {
+		json.NewEncoder(os.Stdout).Encode(record)
+	}
+
 	return true
 }
 
@@ -228,7 +238,13 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 		record.ProcessName = proc.Name
 	}
 
-	json.NewEncoder(os.Stdout).Encode(record)
+	if cfg.verbosity >= 3 {
+		record.Payload = output.NewPayloadInfo(udp.Payload)
+	}
+
+	if cfg.verbosity >= 2 {
+		json.NewEncoder(os.Stdout).Encode(record)
+	}
 	return true
 }
 
