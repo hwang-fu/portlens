@@ -27,6 +27,7 @@ type config struct {
 	process       string
 	pid           int
 	stateful      bool
+	verbosity     int // 0=minimal, 1=normal, 2=detailed, 3=verbose
 }
 
 var cfg config
@@ -42,6 +43,8 @@ func parseFlags() {
 	flag.StringVar(&cfg.process, "process", "", "filter by process name")
 	flag.IntVar(&cfg.pid, "pid", 0, "filter by process ID")
 	flag.BoolVar(&cfg.stateful, "stateful", false, "enable connection state tracking")
+	flag.IntVar(&cfg.verbosity, "verbosity", 2, "output verbosity: 0=minimal, 1=normal, 2=detailed, 3=verbose")
+	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
