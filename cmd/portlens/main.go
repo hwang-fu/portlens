@@ -29,6 +29,8 @@ type config struct {
 	stateful      bool
 	verbosity     int    // 0=minimal, 1=normal, 2=detailed, 3=verbose
 	outputFile    string // output file path (empty = stdout)
+	debug         bool   // enable debug logging
+	logFile       string // log file path (empty = stderr)
 }
 
 var (
@@ -51,6 +53,8 @@ func parseFlags() {
 	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
 	flag.StringVar(&cfg.outputFile, "output", "", "write output to file (default: stdout)")
 	flag.StringVar(&cfg.outputFile, "o", "", "output file (shorthand)")
+	flag.BoolVar(&cfg.debug, "debug", false, "enable debug logging")
+	flag.StringVar(&cfg.logFile, "log-file", "", "write logs to file (default: stderr)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
@@ -66,6 +70,13 @@ func parseFlags() {
 		fmt.Fprintln(os.Stderr, "usage: portlens -i <interface> [--protocol tcp|udp|all]")
 		fmt.Fprintln(os.Stderr, "example: sudo portlens -i lo")
 		os.Exit(1)
+	}
+}
+
+// logDebug logs a message only if debug mode is enabled.
+func logDebug(format string, args ...any) {
+	if cfg.debug {
+		log.Printf("[DEBUG] "+format, args...)
 	}
 }
 
@@ -257,6 +268,16 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 func main() {
 	parseFlags()
 
+	// Setup log output
+	if cfg.logFile != "" {
+		f, err := os.OpenFile(cfg.logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err != nil {
+			log.Fatalf("open log file: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+	}
+
 	// Setup output destination
 	outWriter := os.Stdout
 	if cfg.outputFile != "" {
@@ -288,6 +309,8 @@ func main() {
 	if err := sock.Bind(cfg.interfaceName); err != nil {
 		log.Fatalf("bind: %v", err)
 	}
+
+	logDebug("config: interface=%s, protocol=%s, verbosity=%d", cfg.interfaceName, cfg.protocol, cfg.verbosity)
 
 	fmt.Fprintf(os.Stderr, "capturing on %s...\n", cfg.interfaceName)
 
