@@ -1,6 +1,9 @@
 package output
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // PacketRecord represents a captured packet in JSON-serializable format.
 type PacketRecord struct {
@@ -43,4 +46,29 @@ type PayloadInfo struct {
 // Now returns the current time formatted as ISO 8601 with milliseconds.
 func Now() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+}
+
+// NewPayloadInfo creates a PayloadInfo from raw payload bytes.
+// Shows first 64 and last 64 bytes as hex strings.
+func NewPayloadInfo(data []byte) *PayloadInfo {
+	if len(data) == 0 {
+		return nil
+	}
+
+	info := &PayloadInfo{Size: len(data)}
+
+	// First 64 bytes (or less if payload is smaller)
+	headLen := 64
+	if len(data) < headLen {
+		headLen = len(data)
+	}
+	info.Head = fmt.Sprintf("%x", data[:headLen])
+
+	// Last 64 bytes (only if payload > 64 and tail differs from head)
+	if len(data) > 64 {
+		tailStart := len(data) - 64
+		info.Tail = fmt.Sprintf("%x", data[tailStart:])
+	}
+
+	return info
 }
