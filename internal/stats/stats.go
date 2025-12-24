@@ -55,3 +55,8 @@ func (s *StatsRecorder) Snapshot() map[string]any {
 		"bytes_per_sec":    bytesPerSec,
 	}
 }
+
+// WriteJSON writes the current stats as JSON to the given writer.
+func (s *StatsRecorder) WriteJSON(w io.Writer) {
+	json.NewEncoder(w).Encode(s.Snapshot())
+}
