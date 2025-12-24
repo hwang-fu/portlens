@@ -27,7 +27,8 @@ type config struct {
 	process       string
 	pid           int
 	stateful      bool
-	verbosity     int // 0=minimal, 1=normal, 2=detailed, 3=verbose
+	verbosity     int    // 0=minimal, 1=normal, 2=detailed, 3=verbose
+	outputFile    string // output file path (empty = stdout)
 }
 
 var cfg config
@@ -45,6 +46,8 @@ func parseFlags() {
 	flag.BoolVar(&cfg.stateful, "stateful", false, "enable connection state tracking")
 	flag.IntVar(&cfg.verbosity, "verbosity", 2, "output verbosity: 0=minimal, 1=normal, 2=detailed, 3=verbose")
 	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
+	flag.StringVar(&cfg.outputFile, "output", "", "write output to file (default: stdout)")
+	flag.StringVar(&cfg.outputFile, "o", "", "output file (shorthand)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
