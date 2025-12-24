@@ -23,3 +23,11 @@ func NewRecorder() *StatsRecorder {
 		startTime: time.Now(),
 	}
 }
+
+// RecordPacket records a captured packet.
+func (s *StatsRecorder) RecordPacket(size int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PacketsCaptured++
+	s.BytesProcessed += uint64(size)
+}
