@@ -189,6 +189,10 @@ func handleTCPPacket(ipv4 *parser.IPv4Packet, dir string, connTracker *tracker.T
 		record.ProcessName = proc.Name
 	}
 
+	if cfg.verbosity >= 3 {
+		record.Payload = output.NewPayloadInfo(tcp.Payload)
+	}
+
 	if cfg.verbosity >= 2 {
 		json.NewEncoder(os.Stdout).Encode(record)
 	}
@@ -232,6 +236,10 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 	if proc != nil {
 		record.PID = proc.PID
 		record.ProcessName = proc.Name
+	}
+
+	if cfg.verbosity >= 3 {
+		record.Payload = output.NewPayloadInfo(udp.Payload)
 	}
 
 	if cfg.verbosity >= 2 {
