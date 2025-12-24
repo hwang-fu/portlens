@@ -23,3 +23,12 @@ type FileConfig struct {
 	Debug     bool   `yaml:"debug"`
 	LogFile   string `yaml:"log-file"`
 }
+
+// DefaultPath returns the default config file path.
+func DefaultPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".config", "portlens", "config.yaml")
+}
