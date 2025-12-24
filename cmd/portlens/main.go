@@ -29,6 +29,8 @@ type config struct {
 	stateful      bool
 	verbosity     int    // 0=minimal, 1=normal, 2=detailed, 3=verbose
 	outputFile    string // output file path (empty = stdout)
+	debug         bool   // enable debug logging
+	logFile       string // log file path (empty = stderr)
 }
 
 var (
@@ -51,6 +53,8 @@ func parseFlags() {
 	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
 	flag.StringVar(&cfg.outputFile, "output", "", "write output to file (default: stdout)")
 	flag.StringVar(&cfg.outputFile, "o", "", "output file (shorthand)")
+	flag.BoolVar(&cfg.debug, "debug", false, "enable debug logging")
+	flag.StringVar(&cfg.logFile, "log-file", "", "write logs to file (default: stderr)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
