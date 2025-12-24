@@ -73,6 +73,13 @@ func parseFlags() {
 	}
 }
 
+// logDebug logs a message only if debug mode is enabled.
+func logDebug(format string, args ...any) {
+	if cfg.debug {
+		log.Printf("[DEBUG] "+format, args...)
+	}
+}
+
 // getDirection returns "in", "out", or "unknown" based on src/dst IPs.
 func getDirection(srcIP, dstIP string, localIPs map[string]bool) string {
 	srcLocal := localIPs[srcIP]
@@ -261,6 +268,16 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 func main() {
 	parseFlags()
 
+	// Setup log output
+	if cfg.logFile != "" {
+		f, err := os.OpenFile(cfg.logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err != nil {
+			log.Fatalf("open log file: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+	}
+
 	// Setup output destination
 	outWriter := os.Stdout
 	if cfg.outputFile != "" {
@@ -292,6 +309,8 @@ func main() {
 	if err := sock.Bind(cfg.interfaceName); err != nil {
 		log.Fatalf("bind: %v", err)
 	}
+
+	logDebug("config: interface=%s, protocol=%s, verbosity=%d", cfg.interfaceName, cfg.protocol, cfg.verbosity)
 
 	fmt.Fprintf(os.Stderr, "capturing on %s...\n", cfg.interfaceName)
 
