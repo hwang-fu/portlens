@@ -7,6 +7,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/hwang-fu/portlens/internal/capture"
@@ -382,6 +384,19 @@ func main() {
 			}
 		}()
 	}
+
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		if cfg.graceful && statsRecorder != nil {
+			fmt.Fprintln(os.Stderr, "\n--- Shutdown Summary ---")
+			statsRecorder.WriteJSON(os.Stderr)
+		}
+		os.Exit(0)
+	}()
 
 	buf := make([]byte, 65535)
 	for {
