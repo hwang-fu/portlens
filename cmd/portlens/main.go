@@ -31,7 +31,10 @@ type config struct {
 	outputFile    string // output file path (empty = stdout)
 }
 
-var cfg config
+var (
+	cfg     config
+	jsonOut *json.Encoder
+)
 
 func parseFlags() {
 	flag.StringVar(&cfg.interfaceName, "interface", "", "network interface to capture on")
@@ -134,7 +137,7 @@ func setupTracker() *tracker.Tracker {
 					"bytes_recv":   event.Connection.BytesReceived,
 				},
 			}
-			json.NewEncoder(os.Stdout).Encode(eventRecord)
+			jsonOut.Encode(eventRecord)
 		}
 	}()
 
@@ -197,7 +200,7 @@ func handleTCPPacket(ipv4 *parser.IPv4Packet, dir string, connTracker *tracker.T
 	}
 
 	if cfg.verbosity >= 2 {
-		json.NewEncoder(os.Stdout).Encode(record)
+		jsonOut.Encode(record)
 	}
 
 	return true
@@ -246,13 +249,25 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 	}
 
 	if cfg.verbosity >= 2 {
-		json.NewEncoder(os.Stdout).Encode(record)
+		jsonOut.Encode(record)
 	}
 	return true
 }
 
 func main() {
 	parseFlags()
+
+	// Setup output destination
+	outWriter := os.Stdout
+	if cfg.outputFile != "" {
+		f, err := os.Create(cfg.outputFile)
+		if err != nil {
+			log.Fatalf("create output file: %v", err)
+		}
+		defer f.Close()
+		outWriter = f
+	}
+	jsonOut = json.NewEncoder(outWriter)
 
 	connTracker := setupTracker()
 	if connTracker != nil {
