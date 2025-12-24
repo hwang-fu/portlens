@@ -7,9 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// FileConfig represents the YAML config file structure.
+// YamlConfig represents the YAML config file structure.
 // Field names match CLI flag names.
-type FileConfig struct {
+type YamlConfig struct {
 	Interface string `yaml:"interface"`
 	Protocol  string `yaml:"protocol"`
 	Port      int    `yaml:"port"`
@@ -35,16 +35,16 @@ func DefaultPath() string {
 
 // Load reads and parses a YAML config file.
 // Returns an empty config (not error) if file doesn't exist.
-func Load(path string) (*FileConfig, error) {
+func Load(path string) (*YamlConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &FileConfig{}, nil
+			return &YamlConfig{}, nil
 		}
 		return nil, err
 	}
 
-	var cfg FileConfig
+	var cfg YamlConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
