@@ -189,7 +189,10 @@ func handleTCPPacket(ipv4 *parser.IPv4Packet, dir string, connTracker *tracker.T
 		record.ProcessName = proc.Name
 	}
 
-	json.NewEncoder(os.Stdout).Encode(record)
+	if cfg.verbosity >= 2 {
+		json.NewEncoder(os.Stdout).Encode(record)
+	}
+
 	return true
 }
 
@@ -231,7 +234,9 @@ func handleUDPPacket(ipv4 *parser.IPv4Packet, dir string) bool {
 		record.ProcessName = proc.Name
 	}
 
-	json.NewEncoder(os.Stdout).Encode(record)
+	if cfg.verbosity >= 2 {
+		json.NewEncoder(os.Stdout).Encode(record)
+	}
 	return true
 }
 
