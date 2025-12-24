@@ -33,6 +33,7 @@ type config struct {
 	debug         bool   // enable debug logging
 	logFile       string // log file path (empty = stderr)
 	configFile    string // config file path
+	stats         bool   // show performance statistics
 }
 
 var (
@@ -71,6 +72,7 @@ func parseFlags() {
 	cfg.outputFile = fileCfg.Output
 	cfg.debug = fileCfg.Debug
 	cfg.logFile = fileCfg.LogFile
+	cfg.stats = fileCfg.Stats
 
 	// Default verbosity if not set
 	if cfg.verbosity == 0 {
@@ -103,6 +105,7 @@ func parseFlags() {
 	flag.StringVar(&cfg.logFile, "log-file", cfg.logFile, "write logs to file (default: stderr)")
 	flag.StringVar(&cfg.configFile, "config", cfg.configFile, "config file path")
 	flag.StringVar(&cfg.configFile, "c", cfg.configFile, "config file (shorthand)")
+	flag.BoolVar(&cfg.stats, "stats", cfg.stats, "show performance statistics")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
