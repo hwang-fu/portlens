@@ -22,6 +22,9 @@ type PacketRecord struct {
 	// Protocol-specific fields (only one will be set)
 	TCP *TCPInfo `json:"tcp,omitempty"`
 	UDP *UDPInfo `json:"udp,omitempty"`
+
+	// Payload preview (only at verbosity level 3)
+	Payload *PayloadInfo `json:"payload,omitempty"`
 }
 
 // TCPInfo contains TCP-specific fields.
@@ -58,10 +61,7 @@ func NewPayloadInfo(data []byte) *PayloadInfo {
 	info := &PayloadInfo{Size: len(data)}
 
 	// First 64 bytes (or less if payload is smaller)
-	headLen := 64
-	if len(data) < headLen {
-		headLen = len(data)
-	}
+	headLen := min(64, len(data))
 	info.Head = fmt.Sprintf("%x", data[:headLen])
 
 	// Last 64 bytes (only if payload > 64 and tail differs from head)
