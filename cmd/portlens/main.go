@@ -7,12 +7,14 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/hwang-fu/portlens/internal/capture"
 	yamlconfig "github.com/hwang-fu/portlens/internal/config"
 	"github.com/hwang-fu/portlens/internal/output"
 	"github.com/hwang-fu/portlens/internal/parser"
 	"github.com/hwang-fu/portlens/internal/procfs"
+	"github.com/hwang-fu/portlens/internal/stats"
 	"github.com/hwang-fu/portlens/internal/tracker"
 )
 
@@ -33,6 +35,7 @@ type config struct {
 	debug         bool   // enable debug logging
 	logFile       string // log file path (empty = stderr)
 	configFile    string // config file path
+	stats         bool   // show performance statistics
 }
 
 var (
@@ -71,6 +74,7 @@ func parseFlags() {
 	cfg.outputFile = fileCfg.Output
 	cfg.debug = fileCfg.Debug
 	cfg.logFile = fileCfg.LogFile
+	cfg.stats = fileCfg.Stats
 
 	// Default verbosity if not set
 	if cfg.verbosity == 0 {
@@ -103,6 +107,7 @@ func parseFlags() {
 	flag.StringVar(&cfg.logFile, "log-file", cfg.logFile, "write logs to file (default: stderr)")
 	flag.StringVar(&cfg.configFile, "config", cfg.configFile, "config file path")
 	flag.StringVar(&cfg.configFile, "c", cfg.configFile, "config file (shorthand)")
+	flag.BoolVar(&cfg.stats, "stats", cfg.stats, "show performance statistics")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 
@@ -362,12 +367,29 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "capturing on %s...\n", cfg.interfaceName)
 
+	// Setup stats recorder
+	var statsRecorder *stats.StatsRecorder
+	if cfg.stats {
+		statsRecorder = stats.NewRecorder()
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				statsRecorder.WriteJSON(os.Stderr)
+			}
+		}()
+	}
+
 	buf := make([]byte, 65535)
 	for {
 		n, err := sock.ReadPacket(buf)
 		if err != nil {
 			log.Printf("read error: %v", err)
 			continue
+		}
+
+		if statsRecorder != nil {
+			statsRecorder.RecordPacket(n)
 		}
 
 		frame, err := parser.ParseEthernet(buf[:n])
