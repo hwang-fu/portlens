@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/hwang-fu/portlens/internal/capture"
+	yamlconfig "github.com/hwang-fu/portlens/internal/config"
 	"github.com/hwang-fu/portlens/internal/output"
 	"github.com/hwang-fu/portlens/internal/parser"
 	"github.com/hwang-fu/portlens/internal/procfs"
@@ -31,6 +32,7 @@ type config struct {
 	outputFile    string // output file path (empty = stdout)
 	debug         bool   // enable debug logging
 	logFile       string // log file path (empty = stderr)
+	configFile    string // config file path
 }
 
 var (
@@ -39,22 +41,68 @@ var (
 )
 
 func parseFlags() {
-	flag.StringVar(&cfg.interfaceName, "interface", "", "network interface to capture on")
-	flag.StringVar(&cfg.interfaceName, "i", "", "network interface (shorthand)")
-	flag.StringVar(&cfg.protocol, "protocol", "all", "protocol to capture: tcp, udp, or all")
-	flag.IntVar(&cfg.port, "port", 0, "filter by port number (0 = all ports)")
-	flag.IntVar(&cfg.port, "p", 0, "filter by port (shorthand)")
-	flag.StringVar(&cfg.ip, "ip", "", "filter by IP address (empty = all IPs)")
-	flag.StringVar(&cfg.direction, "direction", "all", "filter by direction: in, out, or all")
-	flag.StringVar(&cfg.process, "process", "", "filter by process name")
-	flag.IntVar(&cfg.pid, "pid", 0, "filter by process ID")
-	flag.BoolVar(&cfg.stateful, "stateful", false, "enable connection state tracking")
-	flag.IntVar(&cfg.verbosity, "verbosity", 2, "output verbosity: 0=minimal, 1=normal, 2=detailed, 3=verbose")
-	flag.IntVar(&cfg.verbosity, "v", 2, "verbosity level (shorthand)")
-	flag.StringVar(&cfg.outputFile, "output", "", "write output to file (default: stdout)")
-	flag.StringVar(&cfg.outputFile, "o", "", "output file (shorthand)")
-	flag.BoolVar(&cfg.debug, "debug", false, "enable debug logging")
-	flag.StringVar(&cfg.logFile, "log-file", "", "write logs to file (default: stderr)")
+	// Check for config file flag first (manual parse)
+	configPath := yamlconfig.DefaultPath()
+	for i, arg := range os.Args[1:] {
+		if arg == "-c" || arg == "--config" {
+			if i+1 < len(os.Args)-1 {
+				configPath = os.Args[i+2]
+			}
+		}
+	}
+
+	// Load config file (if exists)
+	fileCfg, err := yamlconfig.Load(configPath)
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	// Set defaults from file config
+	cfg.configFile = configPath
+	cfg.interfaceName = fileCfg.Interface
+	cfg.protocol = fileCfg.Protocol
+	cfg.port = fileCfg.Port
+	cfg.ip = fileCfg.IP
+	cfg.direction = fileCfg.Direction
+	cfg.process = fileCfg.Process
+	cfg.pid = fileCfg.PID
+	cfg.stateful = fileCfg.Stateful
+	cfg.verbosity = fileCfg.Verbosity
+	cfg.outputFile = fileCfg.Output
+	cfg.debug = fileCfg.Debug
+	cfg.logFile = fileCfg.LogFile
+
+	// Default verbosity if not set
+	if cfg.verbosity == 0 {
+		cfg.verbosity = 2
+	}
+	// Default protocol if not set
+	if cfg.protocol == "" {
+		cfg.protocol = "all"
+	}
+	// Default direction if not set
+	if cfg.direction == "" {
+		cfg.direction = "all"
+	}
+
+	flag.StringVar(&cfg.interfaceName, "interface", cfg.interfaceName, "network interface to capture on")
+	flag.StringVar(&cfg.interfaceName, "i", cfg.interfaceName, "network interface (shorthand)")
+	flag.StringVar(&cfg.protocol, "protocol", cfg.protocol, "protocol to capture: tcp, udp, or all")
+	flag.IntVar(&cfg.port, "port", cfg.port, "filter by port number (0 = all ports)")
+	flag.IntVar(&cfg.port, "p", cfg.port, "filter by port (shorthand)")
+	flag.StringVar(&cfg.ip, "ip", cfg.ip, "filter by IP address (empty = all IPs)")
+	flag.StringVar(&cfg.direction, "direction", cfg.direction, "filter by direction: in, out, or all")
+	flag.StringVar(&cfg.process, "process", cfg.process, "filter by process name")
+	flag.IntVar(&cfg.pid, "pid", cfg.pid, "filter by process ID")
+	flag.BoolVar(&cfg.stateful, "stateful", cfg.stateful, "enable connection state tracking")
+	flag.IntVar(&cfg.verbosity, "verbosity", cfg.verbosity, "output verbosity: 0=minimal, 1=normal, 2=detailed, 3=verbose")
+	flag.IntVar(&cfg.verbosity, "v", cfg.verbosity, "verbosity level (shorthand)")
+	flag.StringVar(&cfg.outputFile, "output", cfg.outputFile, "write output to file (default: stdout)")
+	flag.StringVar(&cfg.outputFile, "o", cfg.outputFile, "output file (shorthand)")
+	flag.BoolVar(&cfg.debug, "debug", cfg.debug, "enable debug logging")
+	flag.StringVar(&cfg.logFile, "log-file", cfg.logFile, "write logs to file (default: stderr)")
+	flag.StringVar(&cfg.configFile, "config", cfg.configFile, "config file path")
+	flag.StringVar(&cfg.configFile, "c", cfg.configFile, "config file (shorthand)")
 
 	showVersion := flag.Bool("version", false, "show version and exit")
 

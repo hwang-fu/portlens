@@ -25,7 +25,13 @@ type YamlConfig struct {
 }
 
 // DefaultPath returns the default config file path.
+// Handles sudo by checking SUDO_USER environment variable.
 func DefaultPath() string {
+	// When running with sudo, use the original user's home directory
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		return filepath.Join("/home", sudoUser, ".config", "portlens", "config.yaml")
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
