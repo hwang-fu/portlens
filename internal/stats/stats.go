@@ -31,3 +31,27 @@ func (s *StatsRecorder) RecordPacket(size int) {
 	s.PacketsCaptured++
 	s.BytesProcessed += uint64(size)
 }
+
+// Snapshot returns current stats as a JSON-serializable struct.
+func (s *StatsRecorder) Snapshot() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	elapsed := time.Since(s.startTime).Seconds()
+	packetsPerSec := float64(0)
+	bytesPerSec := float64(0)
+	if elapsed > 0 {
+		packetsPerSec = float64(s.PacketsCaptured) / elapsed
+		bytesPerSec = float64(s.BytesProcessed) / elapsed
+	}
+
+	return map[string]any{
+		"type":             "stats",
+		"timestamp":        time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		"elapsed_seconds":  elapsed,
+		"packets_captured": s.PacketsCaptured,
+		"bytes_processed":  s.BytesProcessed,
+		"packets_per_sec":  packetsPerSec,
+		"bytes_per_sec":    bytesPerSec,
+	}
+}
