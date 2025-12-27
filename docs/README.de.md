@@ -2,7 +2,7 @@
 
 [English](../README.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [繁體中文](README.zh.md) | [日本語](README.jp.md)
 
-> **Hinweis:** Diese README wurde ursprünglich auf Englisch verfasst. Bei Unklarheiten konsultieren Sie bitte die [englische Version](../README.md).
+> **Hinweis:** Diese README wurde ursprünglich auf Englisch verfasst. Bei Unklarheiten konsultieren bitte die [englische Version](../README.md).
 
 Ein leichtgewichtiger lokaler Netzwerk-Traffic-Sniffer für Linux. Erfasst TCP/UDP-Verkehr mit Prozessidentifikation, Verbindungsverfolgung und Leistungsstatistiken.
 
@@ -88,7 +88,7 @@ sudo ./portlens -i lo --debug --stats --graceful
 
 ## Konfigurationsdatei
 
-Erstellen Sie `~/.config/portlens/config.yaml`:
+Erstell Du`~/.config/portlens/config.yaml`:
 
 ```yaml
 interface: eth0

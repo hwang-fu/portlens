@@ -174,7 +174,7 @@ sudo ./portlens -i lo --stats --graceful -v 3
 # UDP 流量
 echo "hello" | nc -u 127.0.0.1 12345
 
-# TCP 流量（如果您有本地伺服器）
+# TCP 流量（如果你有本地伺服器）
 curl http://localhost:8080
 
 # 多個封包
