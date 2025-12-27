@@ -1,5 +1,7 @@
 # portlens
 
+[English](README.md) | [Deutsch](docs/README.de.md) | [Français](docs/README.fr.md) | [繁體中文](docs/README.zh.md) | [日本語](docs/README.jp.md)
+
 A lightweight local network traffic sniffer for Linux. Captures TCP/UDP traffic with process identification, connection tracking, and performance statistics.
 
 ## Features
